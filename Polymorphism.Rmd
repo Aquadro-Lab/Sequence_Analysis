@@ -6,11 +6,50 @@ output: github_document
 toc: true
 ---
 
-```{r setup, include=FALSE}
+#Set up
+##Input files
 
-#setwd("~/Box Sync/MK-test/Polymorphism_tests/test")
+###***CHANGE THESE IF YOU WISH***
+###Input a multifasta file of the aligned sequences for a gene from a population.
+```{r input, echo=FALSE}
 
-setwd("~/Miyata_scores/bam/Polymorphism")
+input_fasta = "~/github/Sequence_Analysis/input_data/mel-bam-ZI-CDS-NoN.fasta" # ***CHANGE*** to the multifasta file of your aligned population data
+```
+
+###Set up labels and stuff for the output graphs 
+```{r labels}
+
+subtitle_label = "bam | D. mel | Zambia | n=187" # ***CHANGE*** to reflect your gene and population information; this will go on the output graphs
+
+########## SET FIGURE SIZES ##########
+
+histwidth = 5 # ***CHANGE*** to set the width of the polymorphism output histogram in inches
+histheight = 5 # ***CHANGE*** to set the height of the polymorphism output histogram in inches
+
+plotwidth = 14 # ***CHANGE*** to set the width of the polymorphism output plot in inches
+plotheight = 3 # ***CHANGE*** to set the height of the polymorphism output plot in inches
+
+
+########## SET UP REGIONS TO ANNOTATE ON THE PLOT ##########
+
+#This is a dataframe of important regions to highlight; idk why, but ordering the regions in this way makes the legend be in the desired order. Positions are in nucleotides, with the first nucleotide in the alignment being at position 1.
+
+# ***CHANGE*** the notations as you wish OR if you don't want to highlight anything, comment these out!!
+
+rect_df = data.frame(xmin = c(451, 36, 1204, 601), # ***CHANGE*** if want to highlight different regions for your gene
+                     xmax = c(1050, 99, 1302, 750), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from basepair position 451 to 1050)
+                     ymin = c(-Inf, -Inf, -Inf, -Inf), 
+                     ymax = c(Inf, Inf, Inf, Inf),
+                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction"))) # ***CHANGE*** to reflect the names of your regions
+
+hypomorph = data.frame(loc = 763, hypomorph = "L255F") # ***CHANGE*** if you want to highlight any position with a vertical line, e.g. like it currently points to the hypomorph position; I can't get this to show up in the legend however. 
+
+```
+
+##Functions
+###***DON'T CHANGE THESE OR ANYTHING ELSE BELOW... unless you wanna fix my code :) ***
+###This is a set of functions to get sequence data into a few different usable forms. Not all may be relevant for this code, but I maintain them together for ease. 
+```{r sequence_functions, echo=FALSE}
 
 ############# IMPORT FASTA FILES AND CREATE DATAFRAME OF THE SEQUENCES ###################
 
@@ -18,7 +57,7 @@ library(seqinr) #load seqinr library in order to use the read.fasta function bel
 
 get_sequences = function(fasta) { #import sequences from fasta format
   sequence_list = read.fasta(fasta, seqtype = "DNA", seqonly = TRUE)
-  sequence_list2 = gsub(" ", "", sequence_list)  
+  sequence_list2 = gsub(" ", "", sequence_list) #remove any spaces in the fasta file if they are present to make sequences compatible with downstream functions
   sequence_names = c() #set empty vector to create sequence names to identify each sequence in the fasta file
   
   for (i in 1:length(sequence_list)) { #for each sequence in the fasta file, give it an identity of "sequence1, sequence2, etc." Then compile these such that we have a dataframe where the first column is the sequence names and the second column is the corresponding sequence itself)
@@ -30,10 +69,6 @@ get_sequences = function(fasta) { #import sequences from fasta format
   as.data.frame(sequence)
 }
 
-Sequences = get_sequences("mel-bam-ZI-CDS-NoN.fasta")
-
-#Sequences = get_sequences("melNbamNZINCDSNNoN.fasta") #apply the get_sequences function to the fasta file of your choice
-
 ############# CREATE A DATAFRAME OF NUCLEOTIDES FOR THE SEQUENCES ##################
 
 library(stringr) #load library to use str_split_fixed function below
@@ -41,8 +76,6 @@ library(stringr) #load library to use str_split_fixed function below
 get_nucleotides = function(Sequences) { #Create a dataframe such that each nucleotide is in its own column. Thus we get a very large matrix where the rows are the different sequences and the columns are the nucleotides in the sequences.
   nucleotides = str_split_fixed(Sequences$sequence, "", str_length(Sequences[1,1]))
 }
-
-Nucleotides = get_nucleotides(Sequences) #apply the get_nucleotides function to the Sequences files just created above
 
 ############# CREATE A DATAFRAME OF CODONS FOR THE SEQUENCES ##############
 
@@ -59,9 +92,6 @@ get_codons = function(Sequences) { #Now instead of splitting up the sequences in
   }
   codons = Codons
 }
-
-Codons = get_codons(Sequences) #apply the get_codons vector to our Sequences file
-
 
 ############# CREATE A DATAFRAME OF AMINO ACIDS FOR THE SEQUENCES #############
 
@@ -104,221 +134,11 @@ get_AAs = function(Codon_df) {
   AAs = apply(Codon_df, c(1,2), codon_to_aa)
 }
 
-AminoAcids = get_AAs(Codons)
-
 ```
 
-#Run the analysis
-```{r}
-
-############# DO THE POLYMORPHISM ANALYSIS ###########
-
-library(data.table)
-
-syn_polymorphism = 0
-nonsyn_polymorphism = 0
-total_polymorphism = 0
-
-polymorphism_vector = c()
-derived_allele_freq_vector = c()
-
-ancestral_vector = c()
-derived_vector = c()
-
-for (i in 1:ncol(Nucleotides)) {
-  derived_allele = {}
-  derived_allele_freq = {}
-  derived_allele_freq_percent = {}
-  
-  if (length(unique(Nucleotides[,i])) == 1) { #if the site is conserved across all individuals in the population
-    polymorphism_vector = c(polymorphism_vector, "X")
-    derived_allele_freq_vector = c(derived_allele_freq_vector, 0)
-    ancestral_vector = c(ancestral_vector, unique(Nucleotides[,i]))
-    derived_vector = c(derived_vector, NA)
-    
-  }    
-  
-  else { #if statement to find polymorphisms in the population; if there are different nucleotides present at this position in the multiple sequences...
-      cat("Nucleotide position:", i,"\n") #print the nucleotide position
-      cat("Polymorphism:",(unique(Nucleotides[,i])), "\n") #and print what the polymorphisms are
-      total_polymorphism = total_polymorphism + 1 #add a count for the polymorphisms found
-      
-      if ((i %% 3) == 0) { #if statement to determine if synonymous or nonsynonymous; if the nucleotide position is evenly divisible by three...
-        cat("Codon/aa position:", (i/3), "\n") #print the codon/amino acid position that this corresponds to 
-        cat("Codons with polymorphism:", unique(Codons[,(i/3)]), "\n") #and print what the codons are
-        cat("Amino acids:", unlist(unique(AminoAcids[,(i/3)])), "\n") #and print what the translated amino acids are 
-        
-        if (length(unique(AminoAcids[,(i/3)])) == 1) { #if the sequences translate to the same amino acid at this position...
-          syn_polymorphism = syn_polymorphism + 1 #add a count to the synonymous polymorphism tally
-          cat("synonymous polymorphism \n") #and print that this is a synonymous polymorphism
-          
-          polymorphism_vector = c(polymorphism_vector, "S")
-          
-          a = unlist(AminoAcids[, (i/3)])
-          AA_freq_table = data.table(a)
-          
-          t = unlist(Nucleotides[, i])
-
-          allele_freq_table = data.table(t)
-          setkey(allele_freq_table, t)
-          sorted = allele_freq_table[,.N,by=list(t)]
-
-          derived_allele = sorted[order(N)]$t[1]
-          ancestral_allele = sorted[order(N)]$t[2] #Get the ancestral allele
-          
-          derived_vector = c(derived_vector, derived_allele)
-          ancestral_vector = c(ancestral_vector, ancestral_allele)
-          
-          derived_allele_freq = sorted[order(N)]$N[1]
-          derived_allele_freq_percent = derived_allele_freq/nrow(Nucleotides)
-          
-          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent)
-          
-          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
-          
-        } else { #otherwise, add a count to the nonsynonymous polymorphism tally and tell us it is nonsynonymous
-          nonsyn_polymorphism = nonsyn_polymorphism + 1
-          cat("nonsynonymous polymorphism \n")
-          
-          polymorphism_vector = c(polymorphism_vector, "N")
-          
-          t = unlist(Nucleotides[, i])
-
-          allele_freq_table = data.table(t)
-          setkey(allele_freq_table, t)
-          sorted = allele_freq_table[,.N,by=list(t)]
-
-          derived_allele = sorted[order(N)]$t[1]
-          ancestral_allele = sorted[order(N)]$t[2] #Get the ancestral allele
-          
-          derived_vector = c(derived_vector, derived_allele)
-          ancestral_vector = c(ancestral_vector, ancestral_allele)
-          
-          
-          derived_allele_freq = sorted[order(N)]$N[1]
-          derived_allele_freq_percent = derived_allele_freq/nrow(AminoAcids)
-          
-          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent)
-          
-          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
-        }
-        
-      } else { #if the nucleotide position is not evenly divisible by three, then to get the right codon/amino acid position we have to take this into account... repeating the same stuff as was done above
-        cat("Codon/aa position:", (i %/% 3 + 1), "\n") 
-        cat("Codons with polymorphism:", unique(Codons[,(i/3) + 1]), "\n")
-        cat("Amino acids:", unlist(unique(AminoAcids[,(i %/% 3 + 1)])), "\n")
-        
-        if (length(unique(AminoAcids[,(i %/% 3) + 1])) == 1) { #if the sequences translate to the same amino acid at this position...
-          syn_polymorphism = syn_polymorphism + 1 #add a count to the synonymous polymorphism tally
-          cat("synonymous polymorphism \n") #add a count for the polymorphisms found
-          
-          polymorphism_vector = c(polymorphism_vector, "S")
-          
-          t = unlist(Nucleotides[, i])
-
-          allele_freq_table = data.table(t)
-          setkey(allele_freq_table, t)
-          sorted = allele_freq_table[,.N,by=list(t)]
-
-          derived_allele = sorted[order(N)]$t[1]
-          ancestral_allele = sorted[order(N)]$t[2] #Get the ancestral allele
-          
-          derived_vector = c(derived_vector, derived_allele)
-          ancestral_vector = c(ancestral_vector, ancestral_allele)
-          
-          derived_allele_freq = sorted[order(N)]$N[1]
-          derived_allele_freq_percent = derived_allele_freq/nrow(Nucleotides)
-          
-          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent)
-          
-          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
-          
-        } else {
-          nonsyn_polymorphism = nonsyn_polymorphism + 1
-          cat("nonsynonymous polymorphism \n")
-          
-          polymorphism_vector = c(polymorphism_vector, "N")
-          
-          t = unlist(Nucleotides[, i]) #get all the nucleotides that are at this position
-
-          allele_freq_table = data.table(t)
-          setkey(allele_freq_table, t)
-          sorted = allele_freq_table[,.N,by=list(t)] #Get a count of the ancestral and derived alleles
-
-          derived_allele = sorted[order(N)]$t[1] #Get the derived allele
-          ancestral_allele = sorted[order(N)]$t[2] #Get the ancestral allele
-          
-          derived_vector = c(derived_vector, derived_allele)
-          ancestral_vector = c(ancestral_vector, ancestral_allele)
-          
-          derived_allele_freq = sorted[order(N)]$N[1]
-          derived_allele_freq_percent = derived_allele_freq/nrow(Nucleotides) #get the frequency of the derived allele as a percent
-          
-          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent) #store all the frequencies here
-          
-          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
-      }
-    }
-  } #end if statement to find polymorphisms in the population
-}
-
-############# MAKE A GRAPH #############
-
-nucleotide_position = seq(1, ncol(Nucleotides), by = 1)
-
-graph_data = data.frame(nucleotide_position, ancestral_vector, derived_vector, derived_allele_freq_vector, polymorphism_vector)
-
-graph_data_polymorphisms_only = graph_data[!(graph_data$polymorphism_vector=="X"),]
-
-#Below is data used for amino acid regions
-#rect_df = data.frame(xmin = c(13, 151, 402, 201), #dataframe of important regions to highlight
-#                     xmax = c(33, 350, 434, 250),
-#                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-#                     ymax = c(Inf, Inf, Inf, Inf),
-#                     Region = factor(c("bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
-
-rect_df = data.frame(xmin = c(451, 36, 1204, 601), #dataframe of important regions to highlight
-                     xmax = c(1050, 99, 1302, 750),
-                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-                     ymax = c(Inf, Inf, Inf, Inf),
-                     Region = factor(c("CBM", "bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
-
-
-hypomorphs = data.frame(loc = 763, hypomorph = "L255F") #dataframe of hypomorph position
-
-library(ggplot2)
-
-ggplot() +
-  geom_vline(data = hypomorphs,
-             aes(xintercept = loc), #purple line is the hypomorph... can't get it to come up on legend appropriately
-             color = "purple4") +
-  geom_rect(data = rect_df, 
-            aes(xmin = xmin, 
-                xmax = xmax, 
-                ymin = ymin,
-                ymax = ymax,
-                x = NULL,
-                y = NULL,
-                fill = Region,
-                color = NULL),
-            alpha = 0.3) +
-  scale_fill_manual(labels = c("CBM", "bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction"),
-    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442")) +
-  geom_point(data = graph_data_polymorphisms_only, size = 2) +
-  aes(x = nucleotide_position,
-      y = derived_allele_freq_vector,
-      color = factor(polymorphism_vector)) +
-    scale_color_manual(labels = c("Nonsynonymous", "Synonymous"), 
-                     values = c("Blue", "#000000")) +
-  labs(x = "Nucleotide position",
-       y = "Derived allele frequency",
-       title = "Polymorphism frequency across Bam") +
-    scale_x_continuous(limits = c(0, ncol(Nucleotides)))
-```
-
-#Miyata part
-##The set up
-```{r}
+###This is the set up for getting the Miyata scores for the polymorphisms
+####Use of hash function taken from here: https://blog.ephorie.de/hash-me-if-you-can
+```{r Miyata_function, include=FALSE}
 
 assign_hash = Vectorize(assign, vectorize.args = c("x", "value"))
 get_hash = Vectorize(get, vectorize.args = c("x"))
@@ -423,68 +243,239 @@ assign_hash(key, value, hash)
 
 ```
 
+#Run the above functions to get sequence data in usable format
+```{r sequences, echo=FALSE}
 
-```{r}
+Sequences = get_sequences(as.character(input_fasta)) #apply function to import population sequences from fasta file
+
+Nucleotides = get_nucleotides(Sequences) #apply function to get the population sequences into a usable dataframe format
+
+Codons = get_codons(Sequences) #apply function to get population sequences into codon format so we can translate to amino acids
+
+AminoAcids = get_AAs(Codons) #apply function to get amino acids of the population sequences
+
+```
+
+#Do the polymorphism analysis
+###Change the "results = hide" in the initial r header to get verbose output that says things like, "Polymorphism at site 8 with derived allele freq 0.2)
+```{r polymorphisms, results="hide"}
+
+library(data.table)
+
+syn_polymorphism = 0 #set up counting variables
+nonsyn_polymorphism = 0
+total_polymorphism = 0
+
+polymorphism_vector = c() #set up vectors to hold polymorphism information
+derived_allele_freq_vector = c()
+
+ancestral_vector = c()
+derived_vector = c()
+
+for (i in 1:ncol(Nucleotides)) { #go through every nucleotide position in the population sequence alignment
+  derived_allele = {}
+  derived_allele_freq = {}
+  derived_allele_freq_percent = {}
+  
+  if (length(unique(Nucleotides[,i])) == 1) { #if the site is conserved across all individuals in the population
+    polymorphism_vector = c(polymorphism_vector, "X") #mark the site as conserved with an X
+    derived_allele_freq_vector = c(derived_allele_freq_vector, 0) #indicate that the derived allele frequency is 0
+    ancestral_vector = c(ancestral_vector, unique(Nucleotides[,i])) #add the nucleotide to the vector that keeps track of ancestral nucleotides
+    derived_vector = c(derived_vector, NA) #add a placeholder NA to the vector that keeps track of the derived nucleotides
+    
+  }    
+  
+  else { #if there are different nucleotides present at this position in the alignment...
+      cat("Nucleotide position:", i,"\n") #print the nucleotide position
+      cat("Polymorphism:",(unique(Nucleotides[,i])), "\n") #and print what the polymorphisms are
+      total_polymorphism = total_polymorphism + 1 #add a count for the polymorphisms found
+      
+      if ((i %% 3) == 0) { #We want to determine if the polymorphism is synonymous or nonsynonymous. Here, we first check if the nucleotide position is evenly divisible by three so we can properly relate it to its amino acid.
+        cat("Codon/aa position:", (i/3), "\n") #print the codon/amino acid position that this corresponds to 
+        cat("Codons with polymorphism:", unique(Codons[,(i/3)]), "\n") #and print what the codons are
+        cat("Amino acids:", unlist(unique(AminoAcids[,(i/3)])), "\n") #and print what the translated amino acids are 
+        
+        if (length(unique(AminoAcids[,(i/3)])) == 1) { #if the sequences translate to the same amino acid at this position...
+          syn_polymorphism = syn_polymorphism + 1 #add a count to the synonymous polymorphism tally
+          cat("synonymous polymorphism \n") #and print that this is a synonymous polymorphism
+          
+          polymorphism_vector = c(polymorphism_vector, "S") #keep track that this is a synonymous polymorphism at this site
+          
+          a = unlist(AminoAcids[, (i/3)]) #a series of commands to set up a table to determine the derived allele and its frequency
+          AA_freq_table = data.table(a)
+          
+          t = unlist(Nucleotides[, i])
+
+          allele_freq_table = data.table(t)
+          setkey(allele_freq_table, t)
+          sorted = allele_freq_table[,.N,by=list(t)]
+
+          derived_allele = sorted[order(N)]$t[1] #Get the derived allele from the aforementioned table
+          ancestral_allele = sorted[order(N)]$t[2] #Get the ancestral allele the aforementioned table
+          
+          derived_vector = c(derived_vector, derived_allele) #keep track of the derived allele in a vector
+          ancestral_vector = c(ancestral_vector, ancestral_allele)
+          
+          derived_allele_freq = sorted[order(N)]$N[1] #Get the derived allele's frequency (aka the number of occurrences)
+          derived_allele_freq_percent = derived_allele_freq/nrow(Nucleotides) #Get the derived allele's frequency as a percent of the population
+          
+          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent) #Keep track of the derived allele frequency as a vector
+          
+          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
+          
+        } else { #if the site (which is divisible by 3) is not synonymous, add a count to the nonsynonymous polymorphism tally and tell us it is nonsynonymous. Code below is repetitive to what is above.
+          nonsyn_polymorphism = nonsyn_polymorphism + 1
+          cat("nonsynonymous polymorphism \n")
+          
+          polymorphism_vector = c(polymorphism_vector, "N")
+          
+          t = unlist(Nucleotides[, i])
+
+          allele_freq_table = data.table(t)
+          setkey(allele_freq_table, t)
+          sorted = allele_freq_table[,.N,by=list(t)]
+
+          derived_allele = sorted[order(N)]$t[1]
+          ancestral_allele = sorted[order(N)]$t[2] 
+          
+          derived_vector = c(derived_vector, derived_allele)
+          ancestral_vector = c(ancestral_vector, ancestral_allele)
+          
+          
+          derived_allele_freq = sorted[order(N)]$N[1]
+          derived_allele_freq_percent = derived_allele_freq/nrow(AminoAcids)
+          
+          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent)
+          
+          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
+        }
+        
+      } else { #if the nucleotide position is not evenly divisible by three, then to get the right codon/amino acid position we have to take this into account and then I am repeating the code as was done above
+        
+        cat("Codon/aa position:", (i %/% 3 + 1), "\n")  
+        cat("Codons with polymorphism:", unique(Codons[,(i/3) + 1]), "\n")
+        cat("Amino acids:", unlist(unique(AminoAcids[,(i %/% 3 + 1)])), "\n")
+        
+        if (length(unique(AminoAcids[,(i %/% 3) + 1])) == 1) { #if nucleotides are identical at this site...
+          syn_polymorphism = syn_polymorphism + 1 #add a count to the synonymous polymorphism counter
+          cat("synonymous polymorphism \n") 
+          
+          polymorphism_vector = c(polymorphism_vector, "S")
+          
+          t = unlist(Nucleotides[, i])
+
+          allele_freq_table = data.table(t)
+          setkey(allele_freq_table, t)
+          sorted = allele_freq_table[,.N,by=list(t)]
+
+          derived_allele = sorted[order(N)]$t[1]
+          ancestral_allele = sorted[order(N)]$t[2] #Get the ancestral allele
+          
+          derived_vector = c(derived_vector, derived_allele)
+          ancestral_vector = c(ancestral_vector, ancestral_allele)
+          
+          derived_allele_freq = sorted[order(N)]$N[1]
+          derived_allele_freq_percent = derived_allele_freq/nrow(Nucleotides)
+          
+          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent)
+          
+          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
+          
+        } else { #if nucleotides are not identical at this site...
+          nonsyn_polymorphism = nonsyn_polymorphism + 1 #add a count to the nonsynonymous polymorphism counter
+          cat("nonsynonymous polymorphism \n")
+          
+          polymorphism_vector = c(polymorphism_vector, "N")
+          
+          t = unlist(Nucleotides[, i]) #get all the nucleotides that are at this position
+
+          allele_freq_table = data.table(t)
+          setkey(allele_freq_table, t)
+          sorted = allele_freq_table[,.N,by=list(t)] #Get a count of the ancestral and derived alleles
+
+          derived_allele = sorted[order(N)]$t[1] #Get the derived allele
+          ancestral_allele = sorted[order(N)]$t[2] #Get the ancestral allele
+          
+          derived_vector = c(derived_vector, derived_allele)
+          ancestral_vector = c(ancestral_vector, ancestral_allele)
+          
+          derived_allele_freq = sorted[order(N)]$N[1]
+          derived_allele_freq_percent = derived_allele_freq/nrow(Nucleotides) #get the frequency of the derived allele as a percent
+          
+          derived_allele_freq_vector = c(derived_allele_freq_vector, derived_allele_freq_percent) #store all the frequencies here
+          
+          cat("Derived allele:", derived_allele, "with a frequency of", derived_allele_freq_percent, "\n \n")
+      }
+    }
+  } #end if statement to find polymorphisms in the population
+} #end of for loop that cycles through all the nucleotides positions in the gene
+```
+
+#Do the Miyata analysis
+```{r Miyata}
+
 ############### Get ancestral and derived amino acids ########
 
-ancestral_AA_vector = c()
-derived_AA_vector = c()
+ancestral_AA_vector = c() #Set ourselves up to keep track of ancestral amino acids
+derived_AA_vector = c() #Set ourselves up to keep track of derived amino acids
 
-number_of_derived_vector = c()
+number_of_derived_vector = c() #Set ourselves up to keep track of the number of derived (aka non-synonymous) amino acids
 
-for (i in 1:ncol(AminoAcids)) {
+for (i in 1:ncol(AminoAcids)) { #for every site in the translated (amino acid) alignment 
   
-  if (length(unique(AminoAcids[,i])) == 1) { #if all the amino acids at this site are identical
+  if (length(unique(AminoAcids[,i])) == 1) { #if all the amino acids at this site are identical, then...
 
     derived_AA = NA #there are no derived alleles
     ancestral_AA = AminoAcids[1,i] #the ancestral allele is the allele that's present in the first (or any) sequence
 
-    } else { #if there is variation in the amino acid that is present at this site
+    } else { #if there is variation in the amino acid that is present at this site, then...
     
     a = unlist(AminoAcids[, i]) #get all the amino acids that are at this position  
     AA_freq_table = data.table(a)
     setkey(AA_freq_table, a)
     sortedAA = AA_freq_table[,.N,by=list(a)] #create a table with the amino acids and their frequency counts
   
-    derived_AA = sortedAA[order(N)]$a[1] #get the derived allele, which is the one that is less frequent
-    ancestral_AA = sortedAA[order(N)]$a[2] #get the ancestral allele, which is the one that is more frequent
+    derived_AA = sortedAA[order(N)]$a[1] #get the derived amino acid, which is the one that is less frequent
+    ancestral_AA = sortedAA[order(N)]$a[2] #get the ancestral amino acid, which is the one that is more frequent
     
-    number_of_derived = sortedAA[order(N)]$N[1]
+    number_of_derived = sortedAA[order(N)]$N[1] #get the number of instances that the derived (nonsynonymous) amino acid occurs
     number_of_derived_vector = c(number_of_derived_vector, number_of_derived)
 
     }
     
-    derived_AA_vector = c(derived_AA_vector, derived_AA)
-    ancestral_AA_vector = c(ancestral_AA_vector, ancestral_AA)
+    derived_AA_vector = c(derived_AA_vector, derived_AA) #keep track of the derived amino acids
+    ancestral_AA_vector = c(ancestral_AA_vector, ancestral_AA) #keep track of the ancestral amino acids
 }
 
-derived_AA_vector_NoNA = derived_AA_vector[!derived_AA_vector %in% NA] #probably an unnecessary vector
+AA_polymorphisms = rbind(ancestral_AA_vector, derived_AA_vector) #create a dataframe that has for every site in the alignment the ancestral amino acid and, where they exist, the derived amino acid. (Note: these are not true, existing sequences.)
 
-AA_polymorphisms = rbind(ancestral_AA_vector, derived_AA_vector)
+############### GET MIYATA SCORES FOR EACH NONSYNONYMOUS POLYMORPHISM ####################
 
 Miyata_vector = c()
 
-for (j in 1:ncol(AA_polymorphisms)) {
+for (j in 1:ncol(AA_polymorphisms)) { #for every site in the aforementioned dataframe that has all the polymorphisms compiled...
   if (is.na(AA_polymorphisms[2,j]) == TRUE) { #if the amino acids are the same (no derived allele), then...
     Miyata_vector = c(Miyata_vector, 0) #give a Miyata score of 0
-  } else {
-      pairedAAs = paste(AA_polymorphisms[1, j], AA_polymorphisms[2,j])
-#     print(pairedAAs)
-    
-      Miyata = hash[[pairedAAs]]
-#     print(Miyata)
-      Miyata_vector = c(Miyata_vector, Miyata)
-#     Miyata_sum = Miyata_sum + Miyata
+  } else { #if the amino acids are different, then...
+      pairedAAs = paste(AA_polymorphisms[1, j], AA_polymorphisms[2,j]) #find out which two amino acids they are...
+
+      Miyata = hash[[pairedAAs]] #...and get the Miyata score for those two amino acids
+      Miyata_vector = c(Miyata_vector, Miyata) #keep track of these Miyata scores in a vector
   }
 }
 
+```
 
-rep.col<-function(x,n){ #a function to triple every element in the AA vectors so the values will line up with nucleotide vectors
+#Make dataframes to summarize our data and use in our graphs
+##First we have to adjust our amino acid data to match up with our nucleotide data.
+```{r AminoAcid_to_Nuclotide_df}
+
+rep.col<-function(x,n){ #a function to triple every element in the AA vectors so the values will line up with nucleotide vectors. Function taken from: https://www.r-bloggers.com/a-quick-way-to-do-row-repeat-and-col-repeat-rep-row-rep-col/
    matrix(rep(x,each=n), ncol=n, byrow=TRUE)
 }
 
-derived_AA_nt = rep.col(derived_AA_vector, 3)
-derived_AA_ntgraph = as.vector(t(derived_AA_nt))
+derived_AA_nt = rep.col(derived_AA_vector, 3) #apply the function to triple every value in our list of derived amino acids.
+derived_AA_ntgraph = as.vector(t(derived_AA_nt)) #transpose the dataframe so it is in the proper format for us to use
 
 ancestral_AA_nt = rep.col(ancestral_AA_vector, 3)
 ancestral_AA_ntgraph = as.vector(t(ancestral_AA_nt))
@@ -492,170 +483,201 @@ ancestral_AA_ntgraph = as.vector(t(ancestral_AA_nt))
 Miyata_vector_nt = rep.col(Miyata_vector, 3)
 Miyata_vector_ntgraph = as.vector(t(Miyata_vector_nt))
 
-graph_data2 = data.frame(nucleotide_position, ancestral_vector, derived_vector, derived_allele_freq_vector, polymorphism_vector, ancestral_AA_ntgraph, derived_AA_ntgraph, Miyata_vector_ntgraph)
+```
 
-graph_data_polymorphisms_only2 = graph_data2[!(graph_data$polymorphism_vector=="X"),]
+##Next we can make the dataframes
+```{r final_data}
 
-#####To get a data for a histogram of all the polymorphisms and their count
-Miyata_vector_NoZero = Miyata_vector[!Miyata_vector %in% 0]
+nucleotide_position = seq(1, ncol(Nucleotides), by = 1)
+
+graph_data2 = data.frame(nucleotide_position, ancestral_vector, derived_vector, derived_allele_freq_vector, polymorphism_vector, ancestral_AA_ntgraph, derived_AA_ntgraph, Miyata_vector_ntgraph) #dataframe that consists of the ancestral nucleotide and ancestral amino acid, and, if it occurs anywhere in the population at the given site, the derived nucleotide, derived amino acid, the derived allele frequency, the Miyata score between the derived allele and the ancestral allele, and an indication of sysnonymous/nonsynonymous.
+
+graph_data_polymorphisms_only2 = graph_data2[!(graph_data2$polymorphism_vector=="X"),] #we remove all the "uninteresting" conserved sites to make a dataframe with just the polymorphisms.
+
+```
+
+##A simple analysis of the distribution of Miyata scores of the nonsynonymous polymorphisms
+```{r histogram, fig.height = histheight, fig.width = histwidth}
+
+############# ORGANIZE THE DATA #############
+Miyata_vector_NoZero = Miyata_vector[!Miyata_vector %in% 0] #Get the Miyata scores for only sites that are nonsynonymous polymorphisms
 
 Miyata_vector_all_polymorphism = c()
 
-for (k in 1:length(Miyata_vector_NoZero)) {
-  Miyata_rep = rep.col(Miyata_vector_NoZero[k], number_of_derived_vector[k])
-  Miyata_vector_all_polymorphism = c(Miyata_vector_all_polymorphism, Miyata_rep)
+for (k in 1:length(Miyata_vector_NoZero)) { #for each Miyata score of the nonsynonymous polymorphisms...
+  Miyata_rep = rep.col(Miyata_vector_NoZero[k], number_of_derived_vector[k]) #replicate it by the number of instances that the polymorphisms occurs in the population
+  Miyata_vector_all_polymorphism = c(Miyata_vector_all_polymorphism, Miyata_rep) #store the Miyata scores in a vector that accurately shows how many times it occurs in the population
 }
 
-
-```
-
-#Make the final graph
-```{r, fig.height = 5, fig.width = 14}
-
-nucleotide_position = seq(1, ncol(Nucleotides), by = 1)
-
-graph_data = data.frame(nucleotide_position, ancestral_vector, derived_vector, derived_allele_freq_vector, polymorphism_vector)
-
-graph_data_polymorphisms_only = graph_data[!(graph_data$polymorphism_vector=="X"),]
-
-#Below is data used for amino acid regions
-#rect_df = data.frame(xmin = c(13, 151, 402, 201), #dataframe of important regions to highlight
-#                     xmax = c(33, 350, 434, 250),
-#                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-#                     ymax = c(Inf, Inf, Inf, Inf),
-#                     Region = factor(c("bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
-
-rect_df = data.frame(xmin = c(451, 36, 1204, 601), #dataframe of important regions to highlight
-                     xmax = c(1050, 99, 1302, 750),
-                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-                     ymax = c(Inf, Inf, Inf, Inf),
-                     Region = factor(c("CBM", "bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
-
-
-hypomorphs = data.frame(loc = 763, hypomorph = "L255F") #dataframe of hypomorph position
-
-library(ggplot2)
-
-background = ggplot() +
-  geom_vline(data = hypomorphs,
-             aes(xintercept = loc), #purple line is the hypomorph... can't get it to come up on legend appropriately
-             color = "purple4") +
-  geom_rect(data = rect_df, 
-            aes(xmin = xmin, 
-                xmax = xmax, 
-                ymin = ymin,
-                ymax = ymax,
-                x = NULL,
-                y = NULL,
-                fill = Region,
-                color = NULL),
-            alpha = 0.3) +
-  scale_fill_manual(labels = c("CBM", "bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction"),
-    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442"))
-  
-  
-  
-foreground = ggplot() +
-  geom_point(data = graph_data_polymorphisms_only2, size = 3) +
-  aes(x = nucleotide_position,
-      y = derived_allele_freq_vector,
-      color = as.numeric(Miyata_vector_ntgraph)) +
-      scale_color_gradient(name = "Miyata score", low = "white", high = "black") +
-  labs(x = "Nucleotide position",
-       y = "Derived allele frequency",
-       title = "Polymorphism frequency and Miyata scores across Bam; D. mel Zambia n = 187") +
-    scale_x_continuous(limits = c(0, ncol(Nucleotides))) 
-
-outline = ggplot(data = graph_data_polymorphisms_only2, aes(x = nucleotide_position, y = derived_allele_freq_vector)) +
-  geom_point(shape = 1, size = 3, colour = "black")
-
-
-#final_graph = ggplot() + 
-#  background + 
-#  foreground
-#final_graph  
-
-
-```
-
-```{r, fig.height = 2.25, fig.width = 14}
-nucleotide_position = seq(1, ncol(Nucleotides), by = 1)
-
-graph_data = data.frame(nucleotide_position, ancestral_vector, derived_vector, derived_allele_freq_vector, polymorphism_vector)
-
-graph_data_polymorphisms_only = graph_data[!(graph_data$polymorphism_vector=="X"),]
-
-#Below is data used for amino acid regions
-#rect_df = data.frame(xmin = c(13, 151, 402, 201), #dataframe of important regions to highlight
-#                     xmax = c(33, 350, 434, 250),
-#                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-#                     ymax = c(Inf, Inf, Inf, Inf),
-#                     Region = factor(c("bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
-
-rect_df = data.frame(xmin = c(451, 36, 1204, 601), #dataframe of important regions to highlight
-                     xmax = c(1050, 99, 1302, 750),
-                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-                     ymax = c(Inf, Inf, Inf, Inf),
-                     Region = factor(c("CBM", "bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
-
-
-hypomorphs = data.frame(loc = 763, hypomorph = "L255F") #dataframe of hypomorph position
-
-library(ggplot2)
-
-ggplot() +
-  geom_vline(data = hypomorphs,
-             aes(xintercept = loc), #purple line is the hypomorph... can't get it to come up on legend appropriately
-             color = "purple4") +
-  geom_rect(data = rect_df, 
-            aes(xmin = xmin, 
-                xmax = xmax, 
-                ymin = ymin,
-                ymax = ymax,
-                x = NULL,
-                y = NULL,
-                fill = Region,
-                color = NULL),
-            alpha = 0.3) +
-  scale_fill_manual(labels = c("CBM", "bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction"),
-    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442")) +
-  geom_point(data = graph_data_polymorphisms_only2, size = 3) +
-  aes(x = nucleotide_position,
-      y = derived_allele_freq_vector,
-      color = as.numeric(Miyata_vector_ntgraph)) +
-      scale_color_gradient(low = "white", high = "black") +
-  labs(x = "Nucleotide position",
-       y = "Derived allele frequency",
-       title = "Polymorphism frequency and Miyata scores across Bam; D. mel Zambia n = 187") +
-    scale_x_continuous(limits = c(0, ncol(Nucleotides))) +
-  geom_point(data = graph_data_polymorphisms_only2, shape = 1, size = 3, colour = "black")
-
-
-```
-
-#Make histograms of Miyata scores
-```{r fig.height = 5, fig.width = 5}
+############# MAKE THE HISTOGRAMS #############
 
 library(ggplot2)
 library(dplyr)
 
-ggplot() +
-  aes(Miyata_vector) +
-  geom_histogram(binwidth = 0.25) +
-  labs(title = "Miyata scores of bam in population | D. mel bam, Zambia, n = 187", x = "Miyata score") +
-  scale_x_continuous(breaks = seq(0, 5.25, by = 1))
+#A histogram of all the Miyata scores, including lots of 0s for the conserved sites and synonymous polymorphisms
+#Not that useful, so it is commented out currently
+#ggplot() +
+#  aes(Miyata_vector) +
+#  geom_histogram(binwidth = 0.25) +
+#  labs(title = "Miyata scores of population", subtitle = subtitle_label, x = "Miyata score") +
+#  scale_x_continuous(breaks = seq(0, 5.25, by = 1))
 
-
+#A histogram of the set of Miyata scores - no allele frequency is considered here - of the nonsynonymous polymorphisms only.
 ggplot() +
   aes(Miyata_vector_NoZero) +
   geom_histogram(binwidth = 0.25) +
-  labs(title = "Miyata scores of unique polymorphisms | D. mel bam, Zambia, n = 187", x = "Miyata score") +
+  labs(title = "Miyata scores of polymorphisms", subtitle = subtitle_label, x = "Miyata score") +
   scale_x_continuous(breaks = seq(0, 5.25, by = 1))
 
+#A histogram of Miyata scores with allele frequency taken into account of nonsynonymous polymorphisms.
 ggplot() +
   aes(Miyata_vector_all_polymorphism) +
   geom_histogram(binwidth = 0.25) +
-  labs(title = "Miyata scores of all polymorphisms | D. mel bam, Zambia, n = 187", x = "Miyata score") +
+  labs(title = "Miyata scores of polymorphisms with allele frequency", subtitle = subtitle_label, x = "Miyata score") +
   scale_x_continuous(breaks = seq(0, 5.25, by = 1))
+
+```
+
+
+#Make the final graph
+##Set up the background data. This is set to highlight documented functional domains of our gene bam. You can change this to reflect the known regions of your gene and/or not run it. I HAVE MOVED THIS TO THE TOP OF THE DOCUMENT SO IT IS EASY TO ACCESS AND CHANGE. Thus this code chunk is defaulted to NOT be run.
+```{r graph_background, eval=FALSE}
+
+#Below is data used for amino acid regions
+#rect_df = data.frame(xmin = c(13, 151, 402, 201), #dataframe of important regions to highlight
+#                     xmax = c(33, 350, 434, 250),
+#                     ymin = c(-Inf, -Inf, -Inf, -Inf),
+#                     ymax = c(Inf, Inf, Inf, Inf),
+#                     Region = factor(c("bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
+
+rect_df = data.frame(xmin = c(451, 36, 1204, 601), #dataframe of important regions to highlight; idk why, but order the regions in this way makes the legend be in the desired order
+                     xmax = c(1050, 99, 1302, 750),
+                     ymin = c(-Inf, -Inf, -Inf, -Inf),
+                     ymax = c(Inf, Inf, Inf, Inf),
+                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction")))
+
+
+hypomorph = data.frame(loc = 763, hypomorph = "L255F") #dataframe of hypomorph position
+
+```
+
+##Set up the different types of plots to prepare for whether or not we want to include annotations in our final plot 
+```{r}
+
+library(ggplot2)
+
+Hypomorph_SNP = ggplot() +     
+            geom_vline(data = hypomorph, 
+            aes(xintercept = loc), 
+              color = "purple4") 
+
+FxnlRegions = ggplot() +
+            geom_rect(data = rect_df,
+            aes(xmin = xmin, 
+                xmax = xmax, 
+                ymin = ymin,
+                ymax = ymax,
+                x = NULL,
+                y = NULL,
+                fill = Region,
+                color = NULL),
+            alpha = 0.3) +
+  
+  scale_fill_manual(labels = c("Bgcn/Csn4 binding", "CBM", "PEST domain", "Ubiquitin interaction"),
+    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442"))
+
+Polymorphisms = ggplot() +
+    geom_point(data = graph_data_polymorphisms_only2, size = 3) + 
+  
+  aes(x = nucleotide_position,
+      y = derived_allele_freq_vector,
+      color = as.numeric(Miyata_vector_ntgraph)) +
+      scale_color_gradient(low = "white", high = "black") +
+  
+  labs(x = "Nucleotide position",
+       y = "Derived allele frequency",
+       title = "Polymorphism frequency and Miyata scores",
+       subtitle = subtitle_label) +
+  
+    scale_x_continuous(limits = c(0, ncol(Nucleotides))) +
+  
+  geom_point(data = graph_data_polymorphisms_only2, shape = 1, size = 3, colour = "black") 
+
+
+```
+
+#The final plot of polymorphisms!#
+```{r final_graph, fig.height = plotheight, fig.width = plotwidth}
+
+if (exists("rect_df") == FALSE && exists("hypomorph") == FALSE) {
+  print("Regions and a hypomorph SNP are NOT present to be annotated")
+  final_plot = Polymorphisms
+  
+} else if (exists("rect_df") == TRUE && exists("hypomorph") == FALSE) {
+  print("Regions are present to be annotated")
+  
+  final_plot = FxnlRegions + 
+    geom_point(data = graph_data_polymorphisms_only2, size = 3) + 
+  
+  aes(x = nucleotide_position,
+      y = derived_allele_freq_vector,
+      color = as.numeric(Miyata_vector_ntgraph)) +
+      scale_color_gradient(low = "white", high = "black") +
+  
+  labs(x = "Nucleotide position",
+       y = "Derived allele frequency",
+       title = "Polymorphism frequency and Miyata scores",
+       subtitle = subtitle_label) +
+  
+    scale_x_continuous(limits = c(0, ncol(Nucleotides))) +
+  
+  geom_point(data = graph_data_polymorphisms_only2, shape = 1, size = 3, colour = "black") 
+
+} else if (exists("rect_df") == FALSE && exists("hypomorph") == TRUE) {
+  print("Hypomorph SNP present to be annotated")
+   final_plot = Hypomorph_SNP +
+    geom_point(data = graph_data_polymorphisms_only2, size = 3) + 
+  
+  aes(x = nucleotide_position,
+      y = derived_allele_freq_vector,
+      color = as.numeric(Miyata_vector_ntgraph)) +
+      scale_color_gradient(low = "white", high = "black") +
+  
+  labs(x = "Nucleotide position",
+       y = "Derived allele frequency",
+       title = "Polymorphism frequency and Miyata scores",
+       subtitle = subtitle_label) +
+  
+    scale_x_continuous(limits = c(0, ncol(Nucleotides))) +
+  
+  geom_point(data = graph_data_polymorphisms_only2, shape = 1, size = 3, colour = "black") 
+
+} else {
+  print("Functional regions and hypomorph SNP present to be annotated")
+  temp_plot = FxnlRegions + 
+            geom_vline(data = hypomorph, 
+            aes(xintercept = loc), 
+              color = "purple4") 
+  
+  final_plot = temp_plot + 
+        geom_point(data = graph_data_polymorphisms_only2, size = 3) + 
+  
+  aes(x = nucleotide_position,
+      y = derived_allele_freq_vector,
+      color = as.numeric(Miyata_vector_ntgraph)) +
+      scale_color_gradient(low = "white", high = "black") +
+  
+  labs(x = "Nucleotide position",
+       y = "Derived allele frequency",
+       title = "Polymorphism frequency and Miyata scores",
+       subtitle = subtitle_label) +
+  
+    scale_x_continuous(limits = c(0, ncol(Nucleotides))) +
+  
+  geom_point(data = graph_data_polymorphisms_only2, shape = 1, size = 3, colour = "black") 
+
+}
+
+final_plot
 
 ```
