@@ -1,22 +1,22 @@
 ---
-title: "Analyzing polymorphisms in bam of D. mel Zambia population"
+title: "Analyzing polymorphisms a population"
 author: "Miwa Wenzel"
 date: "5/1/2020"
 output: github_document
-toc: true
+
 ---
 
-#Set up
-##Input files
+# Set up
+## Input files
 
-###***CHANGE THESE IF YOU WISH***
-###Input a multifasta file of the aligned sequences for a gene from a population.
-```{r input, echo=FALSE}
+### ***CHANGE THESE IF YOU WISH***
+#### Input a multifasta file of the aligned sequences for a gene from a population.
+```{r input}
 
 input_fasta = "~/github/Sequence_Analysis/input_data/mel-bam-ZI-CDS-NoN.fasta" # ***CHANGE*** to the multifasta file of your aligned population data
 ```
 
-###Set up labels and stuff for the output graphs 
+#### Set up labels and stuff for the output graphs 
 ```{r labels}
 
 subtitle_label = "bam | D. mel | Zambia | n=187" # ***CHANGE*** to reflect your gene and population information; this will go on the output graphs
@@ -46,10 +46,10 @@ hypomorph = data.frame(loc = 763, hypomorph = "L255F") # ***CHANGE*** if you wan
 
 ```
 
-##Functions
-###***DON'T CHANGE THESE OR ANYTHING ELSE BELOW... unless you wanna fix my code :) ***
-###This is a set of functions to get sequence data into a few different usable forms. Not all may be relevant for this code, but I maintain them together for ease. 
-```{r sequence_functions, echo=FALSE}
+## Functions
+#### ***DON'T CHANGE THESE OR ANYTHING ELSE BELOW... unless you wanna fix my code :)***
+##### This is a set of functions to get sequence data into a few different usable forms. Not all may be relevant for this code, but I maintain them together for ease. 
+```{r sequence_functions}
 
 ############# IMPORT FASTA FILES AND CREATE DATAFRAME OF THE SEQUENCES ###################
 
@@ -136,9 +136,9 @@ get_AAs = function(Codon_df) {
 
 ```
 
-###This is the set up for getting the Miyata scores for the polymorphisms
-####Use of hash function taken from here: https://blog.ephorie.de/hash-me-if-you-can
-```{r Miyata_function, include=FALSE}
+### This is the set up for getting the Miyata scores for the polymorphisms
+##### Use of hash function taken from here: https://blog.ephorie.de/hash-me-if-you-can
+```{r Miyata_function, results=FALSE}
 
 assign_hash = Vectorize(assign, vectorize.args = c("x", "value"))
 get_hash = Vectorize(get, vectorize.args = c("x"))
@@ -243,8 +243,8 @@ assign_hash(key, value, hash)
 
 ```
 
-#Run the above functions to get sequence data in usable format
-```{r sequences, echo=FALSE}
+### Run the above functions to get sequence data in usable format
+```{r sequences}
 
 Sequences = get_sequences(as.character(input_fasta)) #apply function to import population sequences from fasta file
 
@@ -256,8 +256,8 @@ AminoAcids = get_AAs(Codons) #apply function to get amino acids of the populatio
 
 ```
 
-#Do the polymorphism analysis
-###Change the "results = hide" in the initial r header to get verbose output that says things like, "Polymorphism at site 8 with derived allele freq 0.2)
+# Do the polymorphism analysis
+##### Change the "results = hide" in the initial r header to get verbose output that says things like, "Polymorphism at site 8 with derived allele freq 0.2)
 ```{r polymorphisms, results="hide"}
 
 library(data.table)
@@ -411,7 +411,7 @@ for (i in 1:ncol(Nucleotides)) { #go through every nucleotide position in the po
 } #end of for loop that cycles through all the nucleotides positions in the gene
 ```
 
-#Do the Miyata analysis
+## Do the Miyata analysis
 ```{r Miyata}
 
 ############### Get ancestral and derived amino acids ########
@@ -466,8 +466,8 @@ for (j in 1:ncol(AA_polymorphisms)) { #for every site in the aforementioned data
 
 ```
 
-#Make dataframes to summarize our data and use in our graphs
-##First we have to adjust our amino acid data to match up with our nucleotide data.
+## Make dataframes to summarize our data and use in our graphs
+#### First we have to adjust our amino acid data to match up with our nucleotide data.
 ```{r AminoAcid_to_Nuclotide_df}
 
 rep.col<-function(x,n){ #a function to triple every element in the AA vectors so the values will line up with nucleotide vectors. Function taken from: https://www.r-bloggers.com/a-quick-way-to-do-row-repeat-and-col-repeat-rep-row-rep-col/
@@ -485,7 +485,7 @@ Miyata_vector_ntgraph = as.vector(t(Miyata_vector_nt))
 
 ```
 
-##Next we can make the dataframes
+#### Next we can make the dataframes
 ```{r final_data}
 
 nucleotide_position = seq(1, ncol(Nucleotides), by = 1)
@@ -496,7 +496,7 @@ graph_data_polymorphisms_only2 = graph_data2[!(graph_data2$polymorphism_vector==
 
 ```
 
-##A simple analysis of the distribution of Miyata scores of the nonsynonymous polymorphisms
+### A simple analysis of the distribution of Miyata scores of the nonsynonymous polymorphisms
 ```{r histogram, fig.height = histheight, fig.width = histwidth}
 
 ############# ORGANIZE THE DATA #############
@@ -539,8 +539,8 @@ ggplot() +
 ```
 
 
-#Make the final graph
-##Set up the background data. This is set to highlight documented functional domains of our gene bam. You can change this to reflect the known regions of your gene and/or not run it. I HAVE MOVED THIS TO THE TOP OF THE DOCUMENT SO IT IS EASY TO ACCESS AND CHANGE. Thus this code chunk is defaulted to NOT be run.
+## Make the final graph
+##### Set up the background data. This is set to highlight documented functional domains of our gene bam. You can change this to reflect the known regions of your gene and/or not run it. **I HAVE MOVED THIS TO THE TOP OF THE DOCUMENT SO IT IS EASY TO ACCESS AND CHANGE. Thus this code chunk is defaulted to NOT be run.**
 ```{r graph_background, eval=FALSE}
 
 #Below is data used for amino acid regions
@@ -561,7 +561,7 @@ hypomorph = data.frame(loc = 763, hypomorph = "L255F") #dataframe of hypomorph p
 
 ```
 
-##Set up the different types of plots to prepare for whether or not we want to include annotations in our final plot 
+#### Set up the different types of plots to prepare for whether or not we want to include annotations in our final plot 
 ```{r}
 
 library(ggplot2)
@@ -606,7 +606,7 @@ Polymorphisms = ggplot() +
 
 ```
 
-#The final plot of polymorphisms!#
+### The final plot of polymorphisms!
 ```{r final_graph, fig.height = plotheight, fig.width = plotwidth}
 
 if (exists("rect_df") == FALSE && exists("hypomorph") == FALSE) {
