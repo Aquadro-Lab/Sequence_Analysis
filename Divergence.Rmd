@@ -33,11 +33,14 @@ plotheight = 3 # ***CHANGE*** to set the width of the output plot in inches
 
 ######### SET UP REGIONS TO ANNOTATE ON THE PLOT #########
 
-rect_df = data.frame(xmin = c(151, 13, 402, 201), # ***CHANGE*** if want to highlight different regions for your gene
-                     xmax = c(350, 33, 434, 250), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from amino acid position 13 to 33)
+rect_df = data.frame(xmin = c(13, 151, 402, 201), # ***CHANGE*** if want to highlight different regions for your gene
+                     xmax = c(33, 350, 434, 250), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from amino acid position 13 to 33)
                      ymin = c(-Inf, -Inf, -Inf, -Inf),
                      ymax = c(Inf, Inf, Inf, Inf),
-                     Region = factor(c("Bgcn/Csn4 binding", "CBM", "PEST domain", "Ubiquitin interaction"))) # ***CHANGE*** to reflect the names of your regions
+                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction"))) # ***CHANGE*** to reflect the names of your regions
+
+rect_colors = c("#CC79A7", "steelblue1", "#009E73", "#F0E442") # ***CHANGE*** if you want to use different colors in highlighting your regions
+
 
 hypomorph = data.frame(loc = 255, hypomorph = "L255F") # ***CHANGE*** if you want to highlight any position with a vertical line, e.g. like it currently points to the hypomorph position; I can't get this to show up in the legend however.
 
@@ -395,9 +398,10 @@ FxnlRegions = ggplot() +
                 fill = Region,
                 color = NULL),
             alpha = 0.3) +
+  scale_fill_manual(values = rect_colors)
 
-  scale_fill_manual(labels = c("Bgcn/Csn4 binding", "CBM", "PEST domain", "Ubiquitin interaction"),
-    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442"))
+#  scale_fill_manual(labels = c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction"),
+#    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442"))
 
 Divergences = ggplot() + 
     
