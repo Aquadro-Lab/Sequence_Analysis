@@ -36,11 +36,13 @@ plotheight = 3 # ***CHANGE*** to set the height of the polymorphism output plot 
 
 # ***CHANGE*** the notations as you wish OR if you don't want to highlight anything, comment these out!!
 
-rect_df = data.frame(xmin = c(451, 36, 1204, 601), # ***CHANGE*** if want to highlight different regions for your gene
-                     xmax = c(1050, 99, 1302, 750), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from basepair position 451 to 1050)
+rect_df = data.frame(xmin = c(36, 451, 1204, 601), # ***CHANGE*** if want to highlight different regions for your gene
+                     xmax = c(99, 1050, 1302, 750), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from basepair position 451 to 1050)
                      ymin = c(-Inf, -Inf, -Inf, -Inf), 
                      ymax = c(Inf, Inf, Inf, Inf),
                      Region = factor(c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction"))) # ***CHANGE*** to reflect the names of your regions
+
+rect_colors = c("#CC79A7", "steelblue1", "#009E73", "#F0E442") # ***CHANGE*** if you want to use different colors in highlighting your regions
 
 hypomorph = data.frame(loc = 763, hypomorph = "L255F") # ***CHANGE*** if you want to highlight any position with a vertical line, e.g. like it currently points to the hypomorph position; I can't get this to show up in the legend however. 
 
@@ -583,8 +585,7 @@ FxnlRegions = ggplot() +
                 color = NULL),
             alpha = 0.3) +
   
-  scale_fill_manual(labels = c("Bgcn/Csn4 binding", "CBM", "PEST domain", "Ubiquitin interaction"),
-    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442"))
+  scale_fill_manual(values = rect_colors)
 
 Polymorphisms = ggplot() +
     geom_point(data = graph_data_polymorphisms_only2, size = 3) + 
