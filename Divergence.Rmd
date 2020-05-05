@@ -22,6 +22,8 @@ input_fastaB = "~/github/Sequence_Analysis/input_data/Dsim_aligned.fasta" # ***C
 ```{r labels}
 
 subtitle_label = "bam | D. mel and D. sim" # ***CHANGE*** to reflect your sequences
+SEQA = "D. mel" # ***CHANGE*** to reflect your input sequence
+SEQB = "D. sim" # ***CHANGE*** to reflect your input sequence
 
 ######### SET FIGURE SIZES ##########
 
@@ -30,19 +32,34 @@ histheight = 5 # ***CHANGE*** to set the width of the divergence output histogra
 
 plotwidth = 14 # ***CHANGE*** to set the width of the output plot in inches
 plotheight = 3 # ***CHANGE*** to set the width of the output plot in inches
+```
 
+#### Set up important regions and stuff to annotate in the output graphs
+##### ***NOTE: Pay attention here***
+##### If you don't have any functional domains or SNPs that you want to highlight, you should change the REGIONS and SNP variables to FALSE.
+##### In our case, we have documented regions of our gene for one species, D. melanogaster. These regions likely line up at similar positions in the second species of interest, but we can't be certain without functional evidence. 
+##### In the case that there are gaps in the D. mel sequence after an alignment, the code will shift the annotated region to always highlight the appropriate sequence of the functional domain for D. mel. ***MAKE SURE YOUR REFERENCE SEQUENCE WITH THE ANNOTATED FUNCTIONAL DOMAINS IS SEQA ABOVE IF YOU WANT TO USE THIS SHIFTING FEATURE*** 
+##### You can turn this feature off if you wish to highlight regions but don't want them to shift! (E.g. if you are not using D. mel as one of your sequences, but still want to highlight the general regions of interest.)
+
+```{r regions}
 ######### SET UP REGIONS TO ANNOTATE ON THE PLOT #########
 
-rect_df = data.frame(xmin = c(13, 151, 402, 201), # ***CHANGE*** if want to highlight different regions for your gene
-                     xmax = c(33, 350, 434, 250), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from amino acid position 13 to 33)
+REGIONS = TRUE # ***CHANGE*** TRUE = you want to annotate the final output plot with functional regions of your gene. Adjust the values in rect_df below if you want to highlight regions other than the default for bam. If set to FALSE, then won't highlight any regions on the final output plot.
+
+SNP = TRUE # ***CHANGE*** TRUE = you want to annotate the final output plot with a vertical line at a specific (single) amino acid. Adjust the values in the hypomorph dataframe below if you want to highlight a SNP other than the default set for bam. If set to FALSE, then won't highlight any SNP on the final output plot.
+
+SHIFT = TRUE # ***CHANGE*** TRUE = the regions listed above will shift according to gaps in input sequence A. FALSE = the regions will not shift. 
+
+rect_df = data.frame(xmin = c(13, 151, 201, 402), # ***CHANGE*** if want to highlight different regions for your gene
+                     xmax = c(33, 350, 250, 434), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from amino acid position 13 to 33)
                      ymin = c(-Inf, -Inf, -Inf, -Inf),
                      ymax = c(Inf, Inf, Inf, Inf),
-                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction"))) # ***CHANGE*** to reflect the names of your regions
+                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "Ubiquitin interaction", "PEST domain"))) # ***CHANGE*** to reflect the names of your regions
 
 rect_colors = c("#CC79A7", "steelblue1", "#009E73", "#F0E442") # ***CHANGE*** if you want to use different colors in highlighting your regions
 
-
 hypomorph = data.frame(loc = 255, hypomorph = "L255F") # ***CHANGE*** if you want to highlight any position with a vertical line, e.g. like it currently points to the hypomorph position; I can't get this to show up in the legend however.
+
 
 ```
 
@@ -283,6 +300,226 @@ for (z in 1:ncol(AA_aligned_df)) {
 AA_aligned_df_NoNULL = AA_aligned_df
 AA_aligned_df_NoNULL[,c(remove_col_vector)] = NULL
 ```
+
+### Adjust documented functional regions' range to be consistent with one input sequence.
+##### We have our documented functional regions for D. mel. When we align D. mel with other sequences, there may be gaps in D. mel. Thus, we can't say that region X starts at amino acid position 13 in the alignment. We have to say that region X starts at amino acid position 13 in the D. mel sequence.
+##### I am thinking that this largely affects the visual of output graphs when we are looking at comparisons/alignments with predicted ancestral nodes.
+```{r shift_annotations}
+
+if (REGIONS == TRUE && SNP == TRUE) {
+  print("Annotations of functionl regions and a SNP present")
+  
+  xmin = rect_df$xmin
+  xmax = rect_df$xmax
+
+
+  if (SHIFT == TRUE) { #if you indicated that you want to shift the annotations of the functional regions to account for gaps in the primary sequence...
+    
+    print("Desire to shift annotations according to alignment and gaps")
+    
+    ### Shift the annotations for the functional domains ###
+  
+    regions_df = rect_df
+
+    count_gap_start_vector = c()
+    count_gap_end_vector = c()
+  
+    new_xmin_vector = c()
+    new_xmax_vector = c()
+  
+    num_regions = nrow(rect_df)
+  
+    for (h in 1:num_regions) { #for each defined functional region that was listed in an early code chunk...
+      count_gap_start = 0
+      count_gap_end = 0
+  
+      temp_old_xmin = regions_df[h,1]
+      temp_old_xmax = regions_df[h,2]
+    
+      for (i in 1:temp_old_xmin) { #for each amino acid position from the beginning of the alignment to the start of the defined functional region...
+        if (as.character(AA_aligned_df_NoNULL[1,i]) == "NULL") { #if there is a gap in the primary sequence (SEQA)... 
+          count_gap_start = count_gap_start + 1 #count the number of gaps
+        }
+      }
+      
+      for (j in 1:temp_old_xmax) { #repeat for each amino acid position from the beginning of the alignment to the end of the defined functional region...
+        if (as.character(AA_aligned_df_NoNULL[1,j]) == "NULL") {
+          count_gap_end = count_gap_end + 1
+        }
+      }  
+      
+      count_gap_start_vector = c(count_gap_start_vector, count_gap_start) #keep track of the number of gaps for each region by storing them in a vector
+      count_gap_end_vector = c(count_gap_end_vector, count_gap_end)
+    
+      temp_new_xmin = temp_old_xmin + count_gap_start #calculate a new start to the region of interest
+      temp_new_xmax = temp_old_xmax + count_gap_end #calculate a new end to the region of interest
+    
+      new_xmin_vector = c(new_xmin_vector, temp_new_xmin)
+      new_xmax_vector = c(new_xmax_vector, temp_new_xmax)
+    
+    }
+  
+    regions_df[6:9] = NA #add columns to the new dataframe to hold this new information
+    names(regions_df) = c("old_xmin", "old_xmax", "ymin", "ymax", "Region", "gap_to_start", "gap_to_end", "xmin", "xmax")
+  
+    regions_df$gap_to_start = count_gap_start_vector
+    regions_df$gap_to_end = count_gap_end_vector
+    regions_df$xmin = new_xmin_vector
+    regions_df$xmax = new_xmax_vector
+    
+    ### Now shift the hypomorph SNP marker ###
+  
+    SNP_df = hypomorph
+    SNP_pos = hypomorph[1,1]
+  
+    count_gap = 0
+  
+    for (k in 1:SNP_pos) {
+      if (as.character(AA_aligned_df_NoNULL[1,k]) == "NULL") {
+        count_gap = count_gap + 1
+      }
+    }
+  
+    new_SNP_pos = SNP_pos + count_gap
+  
+    SNP_df[3:4] = NA
+    names(SNP_df) = c("old_loc", "SNP", "gaps", "loc")
+    SNP_df$gaps = count_gap
+    SNP_df$loc = new_SNP_pos
+  
+  
+  } else { #if you set SHIFT = FALSE, then you don't want to account for gaps in the primary sequence (SEQA) when annotating the graph
+    print("No shifting of annotations for functional regions or SNP")
+    regions_df = rect_df
+  
+    SNP_df = hypomorph
+
+  }
+  
+    
+} else if (REGIONS == TRUE && SNP == FALSE) {
+  
+  print("Only regions present for annotation")
+  
+  xmin = rect_df$xmin
+  xmax = rect_df$xmax
+
+
+  if (SHIFT == TRUE) { #if you indicated that you want to shift the annotations of the functional regions to account for gaps in the primary sequence...
+  
+    print("Desire to shift annotations according to alignment and gaps")
+    
+    ### Shift the annotations for the functional domains ###
+  
+    regions_df = rect_df
+
+    count_gap_start_vector = c()
+    count_gap_end_vector = c()
+  
+    new_xmin_vector = c()
+    new_xmax_vector = c()
+  
+    num_regions = nrow(rect_df)
+  
+    for (h in 1:num_regions) { #for each defined functional region that was listed in an early code chunk...
+      count_gap_start = 0
+      count_gap_end = 0
+  
+      temp_old_xmin = regions_df[h,1]
+      temp_old_xmax = regions_df[h,2]
+    
+      for (i in 1:temp_old_xmin) { #for each amino acid position from the beginning of the alignment to the start of the defined functional region...
+        if (as.character(AA_aligned_df_NoNULL[1,i]) == "NULL") { #if there is a gap in the primary sequence (SEQA)... 
+          count_gap_start = count_gap_start + 1 #count the number of gaps
+        }
+      }
+      
+      for (j in 1:temp_old_xmax) { #repeat for each amino acid position from the beginning of the alignment to the end of the defined functional region...
+        if (as.character(AA_aligned_df_NoNULL[1,j]) == "NULL") {
+          count_gap_end = count_gap_end + 1
+        }
+      }  
+      
+      count_gap_start_vector = c(count_gap_start_vector, count_gap_start) #keep track of the number of gaps for each region by storing them in a vector
+      count_gap_end_vector = c(count_gap_end_vector, count_gap_end)
+    
+      temp_new_xmin = temp_old_xmin + count_gap_start #calculate a new start to the region of interest
+      temp_new_xmax = temp_old_xmax + count_gap_end #calculate a new end to the region of interest
+    
+      new_xmin_vector = c(new_xmin_vector, temp_new_xmin)
+      new_xmax_vector = c(new_xmax_vector, temp_new_xmax)
+    
+    }
+  
+    regions_df[6:9] = NA #add columns to the new dataframe to hold this new information
+    names(regions_df) = c("old_xmin", "old_xmax", "ymin", "ymax", "Region", "gap_to_start", "gap_to_end", "xmin", "xmax")
+  
+    regions_df$gap_to_start = count_gap_start_vector
+    regions_df$gap_to_end = count_gap_end_vector
+    regions_df$xmin = new_xmin_vector
+    regions_df$xmax = new_xmax_vector
+  
+    SNP_df = hypomorph #don't change the hypomorph because it is not applicable here
+  
+  } else { #if you set SHIFT = FALSE, then you don't want to account for gaps in the primary sequence (SEQA) when annotating the graph
+    print("No shifting of annotations for functional regions or SNP")
+    regions_df = rect_df
+  
+    SNP_df = hypomorph
+
+  }
+  
+  
+} else if (REGIONS == FALSE && SNP == TRUE) {
+
+  print("Only a SNP present to be annotated")
+  
+  if (SHIFT == TRUE) { #if you indicated that you want to shift the annotations of the functional regions to account for gaps in the primary sequence...
+  
+    print("Desire to shift annotations according to alignment and gaps")
+    
+    ### Now shift the hypomorph SNP marker ###
+  
+    SNP_df = hypomorph
+    SNP_pos = hypomorph[1,1]
+  
+    count_gap = 0
+  
+    for (k in 1:SNP_pos) {
+      if (as.character(AA_aligned_df_NoNULL[1,k]) == "NULL") {
+        count_gap = count_gap + 1
+      }
+    }
+  
+    new_SNP_pos = SNP_pos + count_gap
+  
+    SNP_df[3:4] = NA
+    names(SNP_df) = c("old_loc", "SNP", "gaps", "loc")
+    SNP_df$gaps = count_gap
+    SNP_df$loc = new_SNP_pos
+  
+    regions_df = rect_df #don't change the regions because they are not applicable here
+  
+  } else { #if you set SHIFT = FALSE, then you don't want to account for gaps in the primary sequence (SEQA) when annotating the graph
+    print("No shifting of annotations for functional regions or SNP")
+    regions_df = rect_df
+  
+    SNP_df = hypomorph
+
+  }
+   
+} else {
+  
+  print("Neither regions nor a SNP present to be annotated")
+  
+  regions_df = rect_df #just setting these here anyway. Will take care of not including them in the graph later.
+  SNP_df = hypomorph
+}
+
+  
+```
+
+
 # Analyses
 ## Do the Miyata analysis
 ```{r Miyata}
@@ -343,30 +580,62 @@ ggplot() +
 
 ```
 
-## Make the final graph
-##### Set up the background data. This is set to highlight documented functional domains of our gene bam. You can change this to reflect the known regions of your gene and/or not run it. ***I HAVE MOVED THIS TO THE TOP OF THE DOCUMENT SO IT IS EASY TO ACCESS AND CHANGE. Thus this code chunk is defaulted to NOT be run.***
+### Create a graphic that shows the gaps and differences in the sequence alignment
+```{r alignment_graphic,  fig.height = plotheight, fig.width = plotwidth}
+library(ggplot2)
 
-```{r graph_background, eval=FALSE}
+gaps = c()
+graph_gap_df = data.frame()
 
-#Below is data used for amino acid regions. It is a dataframe of important regions to highlight; idk why, but order the regions in this way makes the legend be in the desired order
+for (i in 1:ncol(AA_aligned_df_NoNULL)) {
+  if (as.character(AA_aligned_df_NoNULL[1,i]) != as.character(AA_aligned_df_NoNULL[2,i])) {
+    
+    if (as.character(AA_aligned_df_NoNULL[1,i]) == "NA" || as.character(AA_aligned_df_NoNULL[1,i]) == "NULL") {
+      graph_gap_df[1,i] = "gap"
+      graph_gap_df[2,i] = "background"
+      
+    } else if (as.character(AA_aligned_df_NoNULL[2,i]) == "NA" || as.character(AA_aligned_df_NoNULL[2,i]) == "NULL") {
+      graph_gap_df[2,i] = "gap"
+      graph_gap_df[1,i] = "background"
+      
+    } else {
+      graph_gap_df[1,i] = "different"
+      graph_gap_df[2,i] = "different"
+    }
+    
+  } else if (as.character(AA_aligned_df_NoNULL[1,i]) == as.character(AA_aligned_df_NoNULL[2,i])) {
+      graph_gap_df[1,i] = "background"
+      graph_gap_df[2,i] = "background"
+  }
+}
 
-rect_df = data.frame(xmin = c(13, 151, 402, 201), #dataframe of important regions to highlight
-                     xmax = c(33, 350, 434, 250),
-                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-                     ymax = c(Inf, Inf, Inf, Inf),
-                     Region = factor(c("bgcn/csn4 binding", "PEST domain", "Ubiquitin interaction")))
+row.names(graph_gap_df) = c(SEQA, SEQB)
+colnames(graph_gap_df) = c(1:ncol(graph_gap_df))
 
-#Below is the data used for nucleotide positions
-#rect_df = data.frame(xmin = c(451, 36, 1204, 601), 
-#                     xmax = c(1050, 99, 1302, 750),
-#                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-#                     ymax = c(Inf, Inf, Inf, Inf),
-#                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction")))
 
-hypomorph = data.frame(loc = 763, hypomorph = "L255F") #dataframe of hypomorph position
+
+library(reshape)
+graphboolean = melt(as.matrix(graph_gap_df))
+
+xaxis_intervals = seq(from = 0, to = ncol(graph_gap_df), by = 100)
+
+AlignmentGraph = ggplot(data = as.data.frame(graphboolean),
+       aes(x = X2,
+           y = X1, 
+           fill = value)) +
+       geom_tile() +
+       coord_fixed(ratio = 30) +
+       scale_fill_manual(values = c("grey", "red", "blue")) +
+       xlab("Amino acid position (Alignment)") +
+       ylab("Sequences") +
+       labs(fill = "Alignment values") +
+       scale_x_continuous(breaks = c(xaxis_intervals), limits = c(0, ncol(graph_gap_df)))
+
+AlignmentGraph
 
 ```
 
+## Make the final graph
 #### Set up the different types of plots to prepare for whether or not we want to include annotations in our final plot 
 ```{r plot_setup}
 
@@ -383,12 +652,12 @@ graph_data_divergences_only = divergence_Miyata_graph[!(divergence_Miyata_graph$
 library(ggplot2)
 
 Hypomorph_SNP = ggplot() +     
-            geom_vline(data = hypomorph, 
+            geom_vline(data = SNP_df, 
             aes(xintercept = loc), 
-              color = "purple4") 
+              color = "purple4")
 
 FxnlRegions = ggplot() +
-            geom_rect(data = rect_df,
+            geom_rect(data = regions_df,
             aes(xmin = xmin, 
                 xmax = xmax, 
                 ymin = ymin,
@@ -400,9 +669,6 @@ FxnlRegions = ggplot() +
             alpha = 0.3) +
   scale_fill_manual(values = rect_colors)
 
-#  scale_fill_manual(labels = c("CBM", "Bgcn/Csn4 binding", "PEST domain", "Ubiquitin interaction"),
-#    values = c("steelblue1", "#CC79A7", "#009E73", "#F0E442"))
-
 Divergences = ggplot() + 
     
   geom_point(data = graph_data_divergences_only, size = 3, shape = 2) +
@@ -412,7 +678,7 @@ Divergences = ggplot() +
        y = "Miyata score",
        title = "Miyata scores of fixed differences",
        subtitle = subtitle_label) +
-    scale_x_continuous(limits = c(0, ncol(AA_aligned_df_NoNULL)))
+    scale_x_discrete(limits = c(0, ncol(AA_aligned_df_NoNULL)))
 
 ```
 
@@ -421,11 +687,11 @@ Divergences = ggplot() +
 
 library(ggplot2)
 
-if (exists("rect_df") == FALSE && exists("hypomorph") == FALSE) {
+if (REGIONS == FALSE && SNP == FALSE) {
   print("Regions and a hypomorph SNP are NOT present to be annotated")
   final_plot = Divergences
 
-} else if (exists("rect_df") == TRUE && exists("hypomorph") == FALSE) {
+} else if (REGIONS == TRUE && SNP == FALSE) {
   print("Regions are present to be annotated")
 
   final_plot = FxnlRegions + 
@@ -437,9 +703,9 @@ if (exists("rect_df") == FALSE && exists("hypomorph") == FALSE) {
        y = "Miyata score",
        title = "Miyata scores of fixed differences",
        subtitle = subtitle_label) +
-    scale_x_continuous(limits = c(0, ncol(AA_aligned_df_NoNULL)))
+    scale_x_discrete(limits = c(0, ncol(AA_aligned_df_NoNULL)))
 
-} else if (exists("rect_df") == FALSE && exists("hypomorph") == TRUE) {
+} else if (REGIONS == FALSE && SNP == TRUE) {
   print("Hypomorph SNP present to be annotated")
    final_plot = Hypomorph_SNP +
   geom_point(data = graph_data_divergences_only, size = 3, shape = 2) +
@@ -449,12 +715,12 @@ if (exists("rect_df") == FALSE && exists("hypomorph") == FALSE) {
        y = "Miyata score",
        title = "Miyata scores of fixed differences",
        subtitle = subtitle_label) +
-    scale_x_continuous(limits = c(0, ncol(AA_aligned_df_NoNULL)))
+    scale_x_discrete(limits = c(0, ncol(AA_aligned_df_NoNULL)))
 
 } else {
   print("Functional regions and hypomorph SNP present to be annotated")
   temp_plot = FxnlRegions + 
-            geom_vline(data = hypomorph, 
+            geom_vline(data = SNP_df, 
             aes(xintercept = loc), 
               color = "purple4") 
 
@@ -470,4 +736,13 @@ if (exists("rect_df") == FALSE && exists("hypomorph") == FALSE) {
 }
 
 final_plot
+```
+
+```{r dual_plot, fig.height = plotheight, fig.width = plotwidth}
+
+library(grid)
+grid.newpage()
+grid.draw(rbind(ggplotGrob(final_plot), ggplotGrob(AlignmentGraph), size = "last"))
+
+
 ```
