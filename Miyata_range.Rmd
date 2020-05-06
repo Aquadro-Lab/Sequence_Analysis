@@ -296,6 +296,8 @@ num_uniq_AAs_vector = c()
 Miyata_df = matrix(nrow = nrow(AminoAcids_noStop), ncol = ncol(AminoAcids_noStop))
 Miyata_plot_df = data.frame()
 
+all_Miyata_vector = c()
+
 for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in the sequence alignment
 
       cat("Amino acid position:", i,"\n") #print the amino acid position
@@ -369,9 +371,49 @@ for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in 
       
       Miyata_plot_df = rbind(Miyata_plot_df, Miyata_plot_df_temp)
       
+      all_Miyata_vector = c(all_Miyata_vector, Miyata_site_vector)
+      
 }
   
 ```
+
+### A simple analysis of the distribution of Miyata scores
+```{r histogram, fig.height = histheight, fig.width = histwidth}
+
+all_Miyata_vector_NoZero = all_Miyata_vector[!all_Miyata_vector %in% 0.00] #Get the non-zero Miyata scores
+
+############# MAKE THE HISTOGRAMS #############
+
+library(ggplot2)
+library(dplyr)
+
+ggplot() +
+  aes(num_uniq_AAs_vector) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Distribution of the # of unique amino acids per site", 
+       subtitle = subtitle_label, 
+       x = "Number of unique amino acids")
+
+
+#A histogram of Miyata scores for every site in the alignment, i.e. includes lots of 0s for the conserved sites
+#Not that useful, so it is commented out currently
+
+ggplot() +
+  aes(all_Miyata_vector) +
+  geom_histogram(binwidth = 0.25) +
+  labs(title = "Distribution of all Miyata scores", subtitle = subtitle_label, x = "Miyata score") +
+  scale_x_continuous(breaks = seq(0, 5.25, by = 1))
+
+#A histogram of the set of Miyata scores of the divergences.
+
+ggplot() +
+  aes(all_Miyata_vector_NoZero) +
+  geom_histogram(binwidth = 0.25) +
+  labs(title = "Distribution of Non-Zero Miyata scores", subtitle = subtitle_label, x = "Miyata score") +
+  scale_x_continuous(breaks = seq(0, 5.25, by = 1)) #don't know why the x-scale isn't going to 5.25 here :/
+
+```
+
 
 ```{r plot, fig.height=plotheight, fig.width=plotwidth}
 library(ggplot2)
