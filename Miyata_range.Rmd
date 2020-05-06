@@ -1,0 +1,408 @@
+---
+title: "Miyata Range"
+author: "Miwa Wenzel"
+date: "5/6/2020"
+output: github_document
+---
+
+
+# Set up
+## Input files
+
+### ***CHANGE THESE IF YOU WISH***
+#### Input a multifasta file of the aligned sequences for a gene.
+```{r input}
+
+input_ref_fasta = "~/github/Sequence_Analysis/input_data/Dmel_CDS.fasta" # ***CHANGE*** to the fasta file of your reference sequence 
+
+input_fasta = "~/github/Sequence_Analysis/input_data/diversify-AA.fasta" # ***CHANGE*** to the multifasta file of your gene
+```
+
+#### Set up labels and stuff for the output graphs 
+```{r labels}
+
+subtitle_label = "bam | Diversifying AA SLIM simulation" # ***CHANGE*** to reflect any information you want to display in the subtitles of graphs
+
+########## SET FIGURE SIZES ##########
+
+histwidth = 5 # ***CHANGE*** to set the width of the polymorphism output histogram in inches
+histheight = 5 # ***CHANGE*** to set the height of the polymorphism output histogram in inches
+
+plotwidth = 14 # ***CHANGE*** to set the width of the polymorphism output plot in inches
+plotheight = 5 # ***CHANGE*** to set the height of the polymorphism output plot in inches
+
+######### IF YOU WANT YOU WANT TO MAKE A SECOND PLOT THAT IS ZOOMED IN ON A REGION ##########
+
+Plot2_start = 0 # ***CHANGE*** to the amino acid site that you want to start at for your zoomed in plot
+Plot2_end = 30 # ***CHANGE*** to the amino acid site that you want to end at for your zoomed in plot
+```
+
+```{r regions}
+
+######### SET UP REGIONS TO ANNOTATE ON THE PLOT #########
+
+REGIONS = FALSE # ***CHANGE*** TRUE = you want to annotate the final output plot with functional regions of your gene. Adjust the values in rect_df below if you want to highlight regions other than the default for bam. If set to FALSE, then won't highlight any regions on the final output plot.
+
+SNP = FALSE # ***CHANGE*** TRUE = you want to annotate the final output plot with a vertical line at a specific (single) amino acid. Adjust the values in the hypomorph dataframe below if you want to highlight a SNP other than the default set for bam. If set to FALSE, then won't highlight any SNP on the final output plot.
+
+SHIFT = FALSE # ***CHANGE*** TRUE = the regions listed above will shift according to gaps in input sequence A. FALSE = the regions will not shift. 
+
+rect_df = data.frame(xmin = c(13, 151, 201, 402), # ***CHANGE*** if want to highlight different regions for your gene
+                     xmax = c(33, 350, 250, 434), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from amino acid position 13 to 33)
+                     ymin = c(-Inf, -Inf, -Inf, -Inf),
+                     ymax = c(Inf, Inf, Inf, Inf),
+                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "Ubiquitin interaction", "PEST domain"))) # ***CHANGE*** to reflect the names of your regions
+
+rect_colors = c("#CC79A7", "steelblue1", "#009E73", "#F0E442") # ***CHANGE*** if you want to use different colors in highlighting your regions
+
+hypomorph = data.frame(loc = 255, hypomorph = "L255F") # ***CHANGE*** if you want to highlight any position with a vertical line, e.g. like it currently points to the hypomorph position; I can't get this to show up in the legend however.
+
+```
+
+## Functions
+#### ***DON'T CHANGE THESE OR ANYTHING ELSE BELOW... unless you wanna fix my code :)***
+##### This is a set of functions to get sequence data into a few different usable forms. Not all may be relevant for this code, but I maintain them together for ease. 
+```{r sequence_functions}
+
+############# IMPORT FASTA FILES AND CREATE DATAFRAME OF THE SEQUENCES ###################
+
+library(seqinr) #load seqinr library in order to use the read.fasta function below
+
+get_sequences = function(fasta) { #import sequences from fasta format
+  sequence_list = read.fasta(fasta, seqtype = "DNA", seqonly = TRUE)
+  sequence_list2 = gsub(" ", "", sequence_list) #remove any spaces in the fasta file if they are present to make sequences compatible with downstream functions
+  sequence_names = c() #set empty vector to create sequence names to identify each sequence in the fasta file
+  
+  for (i in 1:length(sequence_list)) { #for each sequence in the fasta file, give it an identity of "sequence1, sequence2, etc." Then compile these such that we have a dataframe where the first column is the sequence names and the second column is the corresponding sequence itself)
+    sequence_name = {}
+    sequence_name = paste("sequence", i, sep = "")
+    sequence_names = c(sequence_names, sequence_name)
+  }
+  sequence = mapply(assign, sequence_names, sequence_list2)
+  as.data.frame(sequence)
+}
+
+############# CREATE A DATAFRAME OF NUCLEOTIDES FOR THE SEQUENCES ##################
+
+library(stringr) #load library to use str_split_fixed function below
+
+get_nucleotides = function(Sequences) { #Create a dataframe such that each nucleotide is in its own column. Thus we get a very large matrix where the rows are the different sequences and the columns are the nucleotides in the sequences.
+  nucleotides = str_split_fixed(Sequences$sequence, "", str_length(Sequences[1,1]))
+}
+
+############# CREATE A DATAFRAME OF CODONS FOR THE SEQUENCES ##############
+
+get_codons = function(Sequences) { #Now instead of splitting up the sequences into individual nucleotides for a dataframe, we want to split it up into codons
+  Codons = data.frame(matrix(nrow = nrow(Sequences), ncol = str_length(Sequences[1,1])/3))
+
+  for (b in 1:nrow(Sequences)) {
+    codon_vector = c()
+    for (i in seq(1, str_length(Sequences[b,1]), 3)) { #break up the sequences into codons
+      seq_codon = substr(Sequences[b,1], i, i + 2)
+      codon_vector = c(codon_vector, seq_codon)
+    }
+    Codons[b,] = codon_vector
+  }
+  codons = Codons
+}
+
+############# CREATE A DATAFRAME OF AMINO ACIDS FOR THE SEQUENCES #############
+
+codon_to_aa = function(dna) {
+ switch(dna, 
+        "ATA" = "I", "ATT" = "I", "ATC" = "I",
+        "CTT" = "L", "CTC" = "L", "CTA" = "L", "CTG" = "L", "TTA" = "L", "TTG" = "L",
+        "GTT" = "V", "GTC" = "V", "GTA" = "V", "GTG" = "V",
+        "TTT" = "F", "TTC" = "F",
+        "ATG" = "M",
+        "TGT" = "C", "TGC" = "C",
+        "GCT" = "A", "GCC" = "A", "GCA" = "A", "GCG" = "A",
+        "GGT" = "G", "GGC" = "G", "GGA" = "G", "GGG" = "G",
+        "CCT" = "P", "CCC" = "P", "CCA" = "P", "CCG" = "P",
+        "ACT" = "T", "ACC" = "T", "ACA" = "T", "ACG" = "T",
+        "TCT" = "S", "TCC" = "S", "TCA" = "S", "TCG" = "S", "AGT" = "S", "AGC" = "S",
+        "TAT" = "Y", "TAC" = "Y",
+        "TGG" = "W",
+        "CAA" = "Q", "CAG" = "Q",
+        "AAT" = "N", "AAC" = "N",
+        "CAT" = "H", "CAC" = "H",
+        "GAA" = "E", "GAG" = "E",
+        "GAT" = "D", "GAC" = "D",
+        "AAA" = "K", "AAG" = "K",
+        "CGT" = "R", "CGC" = "R", "CGA" = "R", "CGG" = "R", "AGA" = "R", "AGG" = "R",
+        "TAA" = "Stop", "TAG" = "Stop", "TGA" = "Stop", "NNN" = "NA",
+        "CNN" = "NA", "TNN" = "NA", "GNN" = "NA", "ANN" = "NA", 
+        "CCN" = "NA", "TTN" = "NA", "GGN" = "NA", "AAN" = "NA", 
+        "NNC" = "NA", "NNT" = "NA", "NNG" = "NA", "NNA" = "NA", 
+        "NCC" = "NA", "NTT" = "NA", "NGG" = "NA", "NAA" = "NA", 
+        "CTN" = "NA", "TCN" = "NA", "NCT" = "NA", "NTC" = "NA", 
+        "CAN" = "NA", "ACN" = "NA", "NCA" = "NA", "NAC" = "NA", 
+        "CGN" = "NA", "GCN" = "NA", "NCG" = "NA", "NGC" = "NA", 
+        "ATN" = "NA", "TAN" = "NA", "NAT" = "NA", "NTA" = "NA", 
+        "AGN" = "NA", "GAN" = "NA", "NAG" = "NA", "NGA" = "NA", 
+        "GTN" = "NA", "TGN" = "NA", "NGT" = "NA", "NTG" = "NA") 
+}
+
+get_AAs = function(Codon_df) {
+  AAs = apply(Codon_df, c(1,2), codon_to_aa)
+}
+
+remove_stop = function(AAs_df) { #remove stop amino acid if present
+  end_AAs = AAs_df[,ncol(AAs_df)]
+  if (end_AAs[1] == "Stop") { #if more than one sequence in the input amino acid dataframe, will just evaluate tehfirst one for a stop codon; assuming all the other sequences have the same pattern of having a stop codon present or not.
+    return(AAs_df[,-ncol(AAs_df)])
+  } else {
+    return(AAs_df)
+  }
+  
+} 
+
+
+```
+
+### This is the set up for getting the Miyata scores
+##### Use of hash function taken from here: https://blog.ephorie.de/hash-me-if-you-can
+```{r Miyata_function, results=FALSE}
+
+assign_hash = Vectorize(assign, vectorize.args = c("x", "value"))
+get_hash = Vectorize(get, vectorize.args = c("x"))
+exists_hash = Vectorize(exists, vectorize.args = c("x"))
+
+hash = new.env(hash = TRUE, parent = emptyenv(), size = 418L)
+
+
+key = c("C P", "C A", "C G", "C S", "C T", "C Q", "C E", "C N", "C D", "C H", "C K", "C R", "C V", "C L", "C I", "C M", "C F", "C Y", "C W", 
+        "P A", "P G", "P S", "P T", "P Q", "P E", "P N", "P D", "P H", "P K", "P R", "P V", "P L", "P I", "P M", "P F", "P Y", "P W", 
+        "A G", "A S", "A T", "A Q", "A E", "A N", "A D", "A H", "A K", "A R", "A V", "A L", "A I", "A M", "A F", "A Y", "A W",
+        "G S", "G T", "G Q", "G E", "G N", "G D", "G H", "G K", "G R", "G V", "G L", "G I", "G M", "G F", "G Y", "G W", 
+        "S T", "S Q", "S E", "S N", "S D", "S H", "S K", "S R", "S V", "S L", "S I", "S M", "S F", "S Y", "S W", 
+        "T Q", "T E", "T N", "T D", "T H", "T K", "T R", "T V", "T L", "T I", "T M", "T F", "T Y", "T W",
+        "Q E", "Q N", "Q D", "Q H", "Q K", "Q R", "Q V", "Q L", "Q I", "Q M", "Q F", "Q Y", "Q W",
+        "E N", "E D", "E H", "E K", "E R", "E V", "E L", "E I", "E M", "E F", "E Y", "E W",
+        "N D", "N H", "N K", "N R", "N V", "N L", "N I", "N M", "N F", "N Y", "N W",
+        "D H", "D K", "D R", "D V", "D L", "D I", "D M", "D F", "D Y", "D W",
+        "H K", "H R", "H V", "H L", "H I", "H M", "H F", "H Y", "H W",
+        "K R", "K V", "K L", "K I", "K M", "K F", "K Y", "K W",
+        "R V", "R L", "R I", "R M", "R F", "R Y", "R W",
+        "V L", "V I", "V M", "V F", "V Y", "V W",
+        "L I", "L M", "L F", "L Y", "L W",
+        "I M", "I F", "I Y", "I W",
+        "M F", "M Y", "M W",
+        "F Y", "F W",
+        "Y W",
+        
+        "C NA", "P NA", "A NA", "G NA", "S NA", "T NA", "Q NA", "E NA", "N NA", "D NA", "H NA", "K NA", "R NA", "V NA", "L NA", "I NA", "M NA", "F NA", "Y NA", "W NA",
+  
+        "P C", "A C", "G C", "S C", "T C", "Q C", "E C", "N C", "D C", "H C", "K C", "R C", "V C", "L C", "I C", "M C", "F C", "Y C", "W C", 
+        "A P", "G P", "S P", "T P", "Q P", "E P", "N P", "D P", "H P", "K P", "R P", "V P", "L P", "I P", "M P", "F P", "Y P", "W P", 
+        "G A", "S A", "T A", "Q A", "E A", "N A", "D A", "H A", "K A", "R A", "V A", "L A", "I A", "M A", "F A", "Y A", "W A",
+        "S G", "T G", "Q G", "E G", "N G", "D G", "H G", "K G", "R G", "V G", "L G", "I G", "M G", "F G", "Y G", "W G", 
+        "T S", "Q S", "E S", "N S", "D S", "H S", "K S", "R S", "V S", "L S", "I S", "M S", "F S", "Y S", "W S", 
+        "Q T", "E T", "N T", "D T", "H T", "K T", "R T", "V T", "L T", "I T", "M T", "F T", "Y T", "W T",
+        "E Q", "N Q", "D Q", "H Q", "K Q", "R Q", "V Q", "L Q", "I Q", "M Q", "F Q", "Y Q", "W Q",
+        "N E", "D E", "H E", "K E", "R E", "V E", "L E", "I E", "M E", "F E", "Y E", "W E",
+        "D N", "H N", "K N", "R N", "V N", "L N", "I N", "M N", "F N", "Y N", "W N",
+        "H D", "K D", "R D", "V D", "L D", "I D", "M D", "F D", "Y D", "W D",
+        "K H", "R H", "V H", "L H", "I H", "M H", "F H", "Y H", "W H",
+        "R K", "V K", "L K", "I K", "M K", "F K", "Y K", "W K",
+        "V R", "L R", "I R", "M R", "F R", "Y R", "W R",
+        "L V", "I V", "M V", "F V", "Y V", "W V",
+        "I L", "M L", "F L", "Y L", "W L",
+        "M I", "F I", "Y I", "W I",
+        "F M", "Y M", "W M",
+        "Y F", "W F",
+        "W Y",
+        
+        
+        "NA C", "NA P", "NA A", "NA G", "NA S", "NA T", "NA Q", "NA E", "NA N", "NA D", "NA H", "NA K", "NA R", "NA V", "NA L", "NA I", "NA M", "NA F", "NA Y", "NA W",
+        
+        "C C", "P P", "A A", "G G", "S S", "T T", "Q Q", "E E", "N N", "D D", "H H", "K K", "R R", "V V", "L L", "I I", "M M", "F F", "Y Y", "W W"
+        )
+
+value = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34,
+          0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 
+          0.91, 0.51, 0.9, 1.92, 2.46, 1.78, 2.37, 2.17, 2.96, 2.92, 1.85, 2.76, 2.69, 2.42, 3.23, 3.18, 4.23, 
+          0.85, 1.7, 2.48, 2.78, 1.96, 2.37, 2.78, 3.54, 3.58, 2.76, 3.67, 3.6, 3.34, 4.14, 4.08, 5.13, 
+          0.89, 1.65, 2.06, 1.31, 1.87, 1.94, 2.71, 2.74, 2.15, 3.04, 2.95, 2.67, 3.45, 3.33, 4.38, 
+          1.12, 1.83, 1.4, 2.05, 1.32, 2.1, 2.03, 1.42, 2.25, 2.14, 1.86, 2.6, 2.45, 3.5,
+          0.84, 0.99, 1.47, 0.32, 1.06, 1.13, 2.13, 2.7, 2.57, 2.3, 2.81, 2.48, 3.42,
+          0.85, 0.9, 0.96, 1.14, 1.45, 2.97, 3.53, 3.39, 3.13, 3.59, 3.22, 4.08,
+          0.65, 1.29, 1.84, 2.04, 2.76, 3.49, 3.37, 3.08, 3.7, 3.42, 4.39, 
+          1.72, 2.05, 2.34, 3.4, 4.1, 3.98, 3.69, 4.27, 3.95, 4.88,
+          0.79, 0.82, 2.11, 2.59, 2.45, 2.19, 2.63, 2.27, 3.16,
+          0.4, 2.7, 2.98, 2.84, 2.63, 2.85, 2.42, 3.11,
+          2.43, 2.62, 2.49, 2.29, 2.47, 2.02, 2.72, 
+          0.91, 0.85, 0.62, 1.43, 1.52, 2.51,
+          0.14, 0.41, 0.63, 0.94, 1.73, 
+          0.29, 0.61, 0.86, 1.72,
+          0.82, 0.93, 1.89,
+          0.48, 1.11,
+          1.06,
+          
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          
+          1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34,
+          0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 
+          0.91, 0.51, 0.9, 1.92, 2.46, 1.78, 2.37, 2.17, 2.96, 2.92, 1.85, 2.76, 2.69, 2.42, 3.23, 3.18, 4.23, 
+          0.85, 1.7, 2.48, 2.78, 1.96, 2.37, 2.78, 3.54, 3.58, 2.76, 3.67, 3.6, 3.34, 4.14, 4.08, 5.13, 
+          0.89, 1.65, 2.06, 1.31, 1.87, 1.94, 2.71, 2.74, 2.15, 3.04, 2.95, 2.67, 3.45, 3.33, 4.38, 
+          1.12, 1.83, 1.4, 2.05, 1.32, 2.1, 2.03, 1.42, 2.25, 2.14, 1.86, 2.6, 2.45, 3.5,
+          0.84, 0.99, 1.47, 0.32, 1.06, 1.13, 2.13, 2.7, 2.57, 2.3, 2.81, 2.48, 3.42,
+          0.85, 0.9, 0.96, 1.14, 1.45, 2.97, 3.53, 3.39, 3.13, 3.59, 3.22, 4.08,
+          0.65, 1.29, 1.84, 2.04, 2.76, 3.49, 3.37, 3.08, 3.7, 3.42, 4.39, 
+          1.72, 2.05, 2.34, 3.4, 4.1, 3.98, 3.69, 4.27, 3.95, 4.88,
+          0.79, 0.82, 2.11, 2.59, 2.45, 2.19, 2.63, 2.27, 3.16,
+          0.4, 2.7, 2.98, 2.84, 2.63, 2.85, 2.42, 3.11,
+          2.43, 2.62, 2.49, 2.29, 2.47, 2.02, 2.72, 
+          0.91, 0.85, 0.62, 1.43, 1.52, 2.51,
+          0.14, 0.41, 0.63, 0.94, 1.73, 
+          0.29, 0.61, 0.86, 1.72,
+          0.82, 0.93, 1.89,
+          0.48, 1.11,
+          1.06,
+          
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 
+          
+          )
+
+assign_hash(key, value, hash)
+
+```
+
+### Run the above functions to get sequence data in usable format
+```{r sequences}
+
+Sequences = get_sequences(as.character(input_fasta)) #apply function to import population sequences from fasta file
+Nucleotides = get_nucleotides(Sequences) #apply function to get the population sequences into a usable dataframe format
+Codons = get_codons(Sequences) #apply function to get population sequences into codon format so we can translate to amino acids
+AminoAcids = get_AAs(Codons) #apply function to get amino acids of the population sequences
+AminoAcids_noStop = remove_stop(AminoAcids)
+
+Sequences_ref = get_sequences(as.character(input_ref_fasta))
+Nucleotides_ref = get_nucleotides(Sequences_ref)
+Codons_ref = get_codons(Sequences_ref)
+AminoAcids_ref = get_AAs(Codons_ref)
+AminoAcids_ref_noStop = remove_stop(AminoAcids_ref)
+
+```
+
+```{r Miyata_freq, results="hide"}
+
+library(data.table)
+
+num_uniq_AAs_vector = c()
+Miyata_df = matrix(nrow = nrow(AminoAcids_noStop), ncol = ncol(AminoAcids_noStop))
+Miyata_plot_df = data.frame()
+
+for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in the sequence alignment
+
+      cat("Amino acid position:", i,"\n") #print the amino acid position
+      cat("Amino acids present:",(unique(AminoAcids_noStop[,i])), "\n") #and print what the amino acids are
+      num_uniq_AAs = length(unique(AminoAcids_noStop[,i])) #count the number of unique amino acids at this site
+
+      num_uniq_AAs_vector = c(num_uniq_AAs_vector, num_uniq_AAs)
+
+      a = unlist(AminoAcids_noStop[, (i)]) #a series of commands to set up a table to determine all the amino acids at this site and their frequencies
+
+      AA_freq_table = data.table(a)
+
+      setkey(AA_freq_table, a)
+      collapse = AA_freq_table[,.N,by=list(a)]
+
+      sorted = collapse[order(N)]
+
+      Miyata_vector = c()
+      Miyata_site_vector = c()
+      Miyata_freq_vector = c()
+      
+      for (b in 1:nrow(sorted)) {
+        tempAA = sorted[b,1]
+        pairedAAs = paste(AminoAcids_ref_noStop[i], tempAA)
+        Miyata = hash[[pairedAAs]]
+
+        Freq = as.numeric(sorted[b,2])
+        Miyata_freq_vector = c(Miyata_freq_vector, Freq)
+        Miyata_freq = c(rep(Miyata, each=Freq))
+
+        Miyata_vector = c(Miyata_vector, Miyata)
+        Miyata_site_vector = c(Miyata_site_vector, Miyata_freq)
+      }
+      
+      cat("Set of Miyata scores:", Miyata_vector, "\n")
+      cat("Corresponding freq of scores:", Miyata_freq_vector, "\n")
+      
+      Miyata_df[,i] = Miyata_site_vector
+      
+      #Formatting data to be graphable
+      Miyata_plot_df_temp = data.frame(site = c(rep(i, each = 7)), Miyata_range = c("0", "0-1", "1-2", "2-3", "3-4", "4-5", "5-6"))
+      zero = 0
+      zeroone = 0
+      onetwo = 0
+      twothree = 0
+      threefour = 0
+      fourfive = 0
+      fivesix = 0
+      
+      for (c in (1:length(Miyata_site_vector))) {
+        Miyata1 = Miyata_site_vector[c]
+        if (Miyata1 == 0 ) {
+          zero = zero + 1
+        } else if (Miyata1 >0 && Miyata1 <=1) {
+          zeroone = zeroone + 1
+        } else if (Miyata1 >1 && Miyata1 <=2) {
+          onetwo = onetwo + 1
+        } else if (Miyata1 >2 && Miyata1 <=3) {
+          twothree = twothree + 1
+        } else if (Miyata1 >3 && Miyata1 <=4) {
+          threefour = threefour + 1
+        } else if (Miyata1 >4 && Miyata1 <=5) {
+          fourfive = fourfive  + 1
+        } else if (Miyata1 >5 && Miyata1 <=6) {
+          fivesix = fivesix + 1
+        } 
+      }
+      
+      bins = c(zero, zeroone, onetwo, twothree, threefour, fourfive, fivesix)
+      Miyata_plot_df_temp[,3] = bins
+      
+      Miyata_plot_df = rbind(Miyata_plot_df, Miyata_plot_df_temp)
+      
+}
+  
+```
+
+```{r plot, fig.height=plotheight, fig.width=plotwidth}
+library(ggplot2)
+
+ggplot(Miyata_plot_df, aes(fill=Miyata_range, y = V3, x=site)) + 
+    geom_bar(position="stack", stat="identity")+
+  labs(title = "Range of Miyata scores to reference sequence", subtitle = subtitle_label, x = "Amino Acid site", y = "Number of simulations")
+
+```
+
+```{r plot2, fig.height=plotheight, fig.width=plotwidth}
+
+Miyata_plot2_df = data.frame()
+row_vector = c()
+
+for (d in 1:nrow(Miyata_plot_df)) {
+  site = Miyata_plot_df[d,1]
+  
+  if (site >= Plot2_start && site <= Plot2_end) {
+    row_vector = c(row_vector, d)
+  }
+}
+
+Miyata_plot2_df = Miyata_plot_df[row_vector,]
+
+library(ggplot2)
+
+ggplot(Miyata_plot2_df, aes(fill=Miyata_range, y = V3, x=site)) + 
+    geom_bar(position="stack", stat="identity")+
+  labs(title = "Range of Miyata scores to reference sequence", subtitle = subtitle_label, x = "Amino Acid site", y = "Number of simulations")
+
+
+
+```
