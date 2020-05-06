@@ -197,7 +197,7 @@ key = c("C P", "C A", "C G", "C S", "C T", "C Q", "C E", "C N", "C D", "C H", "C
         "C NA", "P NA", "A NA", "G NA", "S NA", "T NA", "Q NA", "E NA", "N NA", "D NA", "H NA", "K NA", "R NA", "V NA", "L NA", "I NA", "M NA", "F NA", "Y NA",
 
         "P C", "A C", "G C", "S C", "T C", "Q C", "E C", "N C", "D C", "H C", "K C", "R C", "V C", "L C", "I C", "M C", "F C", "Y C", "W C", 
-        "A P ", "G P", "S P", "T P", "Q P", "E P", "N P", "D P", "H P", "K P", "R P", "V P", "L P", "I P", "M P", "F P", "Y P", "W P", 
+        "A P", "G P", "S P", "T P", "Q P", "E P", "N P", "D P", "H P", "K P", "R P", "V P", "L P", "I P", "M P", "F P", "Y P", "W P", 
         "G A", "S A", "T A", "Q A", "E A", "N A", "D A", "H A", "K A", "R A", "V A", "L A", "I A", "M A", "F A", "Y A", "W A",
         "S G", "T G", "Q G", "E G", "N G", "D G", "H G", "K G", "R G", "V G", "L G", "I G", "M G", "F G", "Y G", "W G", 
         "T S", "Q S", "E S", "N S", "D S", "H S", "K S", "R S", "V S", "L S", "I S", "M S", "F S", "Y S", "W S", 
