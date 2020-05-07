@@ -373,6 +373,52 @@ for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in 
       
       all_Miyata_vector = c(all_Miyata_vector, Miyata_site_vector)
       
+### FIND THE NUMBER OF SYNONYMOUS POLYMORPHISMS IN AMINO ACIDS WITH THE ORIGANAL AMINO ACID ###      
+### this indicates that the site mutated away and then came back. but is an underestimate because it is not accounting for sites that mutated away and then mutated back to the exact same codon
+      
+      site_mut = c()
+      matching_AAs = 0
+      diff_AAs = 0
+      
+      for (j in 1:nrow(AminoAcids_noStop)) {
+
+        if (AminoAcids_noStop[j,i] == AminoAcids_ref_noStop[i]) {
+          
+          matching_AAs = matching_AAs + 1
+          
+          if (Codons[j,i] == Codons_ref[i]) {
+#            cat("same codons:", as.character(Codons[j,i]), "and", as.character(Codons_ref[i]))
+            
+            site_mut = c(site_mut, 0)
+            
+          } else {
+            site_mut = c(site_mut, 1)
+#            cat("different codons:", as.character(Codons[j,i]), "and", as.character(Codons_ref[i]))
+
+          }
+          
+        } else {
+          diff_AAs = diff_AAs + 1
+
+        }
+
+      }
+        
+      if (matching_AAs != 0) {
+        
+        diff_codons = sum(site_mut)
+        matching_codons = matching_AAs-diff_codons
+        percent_diff = diff_codons/matching_AAs
+        
+        site_mut_vector = c(site_mut_vector, percent_diff)    
+        
+      } else {
+        site_mut_vector = c(site_mut_vector, NA)
+      }
+#      print(site_mut_vector)      
+      
+      
+      
 }
   
 ```
