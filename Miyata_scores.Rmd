@@ -1,1 +1,3961 @@
+---
+title: "Miyata scores"
+output: html_document
+---
 
+#Functions
+```{r}
+
+library(seqinr)
+
+get_sequences = function(fasta) {
+  sequence_list = read.fasta(fasta, seqtype = "DNA", seqonly = TRUE)
+#  print(sequence_list)
+  sequence_list2 = gsub(" ", "", sequence_list)
+#  print(sequence_list2)
+  sequence_names = c()
+  
+  for (i in 1:length(sequence_list)) {
+    sequence_name = {}
+    sequence_name = paste("sequence", i, sep = "")
+    sequence_names = c(sequence_names, sequence_name)
+  }
+  sequence = mapply(assign, sequence_names, sequence_list2)
+  as.data.frame(sequence)
+}
+
+#############
+
+library(stringr)
+
+get_nucleotides = function(Sequences) {
+  nucleotides = str_split_fixed(Sequences$sequence, "", str_length(SequencesA[1,1]))
+}
+
+
+
+#############
+
+get_codons = function(Sequences) {
+  Codons = data.frame(matrix(nrow = nrow(Sequences), ncol = str_length(Sequences[1,1])/3))
+
+  for (b in 1:nrow(Sequences)) {
+    codon_vector = c()
+    for (i in seq(1, str_length(Sequences[b,1]), 3)) { #break up the sequences into codons
+      seq_codon = substr(Sequences[b,1], i, i + 2)
+      codon_vector = c(codon_vector, seq_codon)
+    }
+    Codons[b,] = codon_vector
+  }
+  codons = Codons
+}
+
+################
+
+codon_to_aa <- function(dna) {
+ switch(dna, 
+        "ATA" = "I", "ATT" = "I", "ATC" = "I",
+        "CTT" = "L", "CTC" = "L", "CTA" = "L", "CTG" = "L", "TTA" = "L", "TTG" = "L",
+        "GTT" = "V", "GTC" = "V", "GTA" = "V", "GTG" = "V",
+        "TTT" = "F", "TTC" = "F",
+        "ATG" = "M",
+        "TGT" = "C", "TGC" = "C",
+        "GCT" = "A", "GCC" = "A", "GCA" = "A", "GCG" = "A",
+        "GGT" = "G", "GGC" = "G", "GGA" = "G", "GGG" = "G",
+        "CCT" = "P", "CCC" = "P", "CCA" = "P", "CCG" = "P",
+        "ACT" = "T", "ACC" = "T", "ACA" = "T", "ACG" = "T",
+        "TCT" = "S", "TCC" = "S", "TCA" = "S", "TCG" = "S", "AGT" = "S", "AGC" = "S",
+        "TAT" = "Y", "TAC" = "Y",
+        "TGG" = "W",
+        "CAA" = "Q", "CAG" = "Q",
+        "AAT" = "N", "AAC" = "N",
+        "CAT" = "H", "CAC" = "H",
+        "GAA" = "E", "GAG" = "E",
+        "GAT" = "D", "GAC" = "D",
+        "AAA" = "K", "AAG" = "K",
+        "CGT" = "R", "CGC" = "R", "CGA" = "R", "CGG" = "R", "AGA" = "R", "AGG" = "R",
+        "TAA" = "Stop", "TAG" = "Stop", "TGA" = "Stop", "---" = "NA",
+        "C--" = "NA", "T--" = "NA", "G--" = "NA", "A--" = "NA", 
+        "CC-" = "NA", "TT-" = "NA", "GG-" = "NA", "AA-" = "NA", 
+        "--C" = "NA", "--T" = "NA", "--G" = "NA", "--A" = "NA", 
+        "-CC" = "NA", "-TT" = "NA", "-GG" = "NA", "-AA" = "NA", 
+        "CT-" = "NA", "TC-" = "NA", "-CT" = "NA", "-TC" = "NA", 
+        "CA-" = "NA", "AC-" = "NA", "-CA" = "NA", "-AC" = "NA", 
+        "CG-" = "NA", "GC-" = "NA", "-CG" = "NA", "-GC" = "NA", 
+        "AT-" = "NA", "TA-" = "NA", "-AT" = "NA", "-TA" = "NA", 
+        "AG-" = "NA", "GA-" = "NA", "-AG" = "NA", "-GA" = "NA", 
+        "GT-" = "NA", "TG-" = "NA", "-GT" = "NA", "-TG" = "NA") 
+}
+
+get_AAs = function(Codon_df) {
+  AAs = apply(Codon_df, c(1,2), codon_to_aa)
+}
+
+##############
+
+assign_hash = Vectorize(assign, vectorize.args = c("x", "value"))
+get_hash = Vectorize(get, vectorize.args = c("x"))
+exists_hash = Vectorize(exists, vectorize.args = c("x"))
+
+hash = new.env(hash = TRUE, parent = emptyenv(), size = 418L)
+
+
+key = c("C P", "C A", "C G", "C S", "C T", "C Q", "C E", "C N", "C D", "C H", "C K", "C R", "C V", "C L", "C I", "C M", "C F", "C Y", "C W", 
+        "P A", "P G", "P S", "P T", "P Q", "P E", "P N", "P D", "P H", "P K", "P R", "P V", "P L", "P I", "P M", "P F", "P Y", "P W", 
+        "A G", "A S", "A T", "A Q", "A E", "A N", "A D", "A H", "A K", "A R", "A V", "A L", "A I", "A M", "A F", "A Y", "A W",
+        "G S", "G T", "G Q", "G E", "G N", "G D", "G H", "G K", "G R", "G V", "G L", "G I", "G M", "G F", "G Y", "G W", 
+        "S T", "S Q", "S E", "S N", "S D", "S H", "S K", "S R", "S V", "S L", "S I", "S M", "S F", "S Y", "S W", 
+        "T Q", "T E", "T N", "T D", "T H", "T K", "T R", "T V", "T L", "T I", "T M", "T F", "T Y", "T W",
+        "Q E", "Q N", "Q D", "Q H", "Q K", "Q R", "Q V", "Q L", "Q I", "Q M", "Q F", "Q Y", "Q W",
+        "E N", "E D", "E H", "E K", "E R", "E V", "E L", "E I", "E M", "E F", "E Y", "E W",
+        "N D", "N H", "N K", "N R", "N V", "N L", "N I", "N M", "N F", "N Y", "N W",
+        "D H", "D K", "D R", "D V", "D L", "D I", "D M", "D F", "D Y", "D W",
+        "H K", "H R", "H V", "H L", "H I", "H M", "H F", "H Y", "H W",
+        "K R", "K V", "K L", "K I", "K M", "K F", "K Y", "K W",
+        "R V", "R L", "R I", "R M", "R F", "R Y", "R W",
+        "V L", "V I", "V M", "V F", "V Y", "V W",
+        "L I", "L M", "L F", "L Y", "L W",
+        "I M", "I F", "I Y", "I W",
+        "M F", "M Y", "M W",
+        "F Y", "F W",
+        "Y W",
+        
+        "C NA", "P NA", "A NA", "G NA", "S NA", "T NA", "Q NA", "E NA", "N NA", "D NA", "H NA", "K NA", "R NA", "V NA", "L NA", "I NA", "M NA", "F NA", "Y NA",
+  
+        "P C", "A C", "G C", "S C", "T C", "Q C", "E C", "N C", "D C", "H C", "K C", "R C", "V C", "L C", "I C", "M C", "F C", "Y C", "W C", 
+        "A P ", "G P", "S P", "T P", "Q P", "E P", "N P", "D P", "H P", "K P", "R P", "V P", "L P", "I P", "M P", "F P", "Y P", "W P", 
+        "G A", "S A", "T A", "Q A", "E A", "N A", "D A", "H A", "K A", "R A", "V A", "L A", "I A", "M A", "F A", "Y A", "W A",
+        "S G", "T G", "Q G", "E G", "N G", "D G", "H G", "K G", "R G", "V G", "L G", "I G", "M G", "F G", "Y G", "W G", 
+        "T S", "Q S", "E S", "N S", "D S", "H S", "K S", "R S", "V S", "L S", "I S", "M S", "F S", "Y S", "W S", 
+        "Q T", "E T", "N T", "D T", "H T", "K T", "R T", "V T", "L T", "I T", "M T", "F T", "Y T", "W T",
+        "E Q", "N Q", "D Q", "H Q", "K Q", "R Q", "V Q", "L Q", "I Q", "M Q", "F Q", "Y Q", "W Q",
+        "N E", "D E", "H E", "K E", "R E", "V E", "L E", "I E", "M E", "F E", "Y E", "W E",
+        "D N", "H N", "K N", "R N", "V N", "L N", "I N", "M N", "F N", "Y N", "W N",
+        "H D", "K D", "R D", "V D", "L D", "I D", "M D", "F D", "Y D", "W D",
+        "K H", "R H", "V H", "L H", "I H", "M H", "F H", "Y H", "W H",
+        "R K", "V K", "L K", "I K", "M K", "F K", "Y K", "W K",
+        "V R", "L R", "I R", "M R", "F R", "Y R", "W R",
+        "L V", "I V", "M V", "F V", "Y V", "W V",
+        "I L", "M L", "F L", "Y L", "W L",
+        "M I", "F I", "Y I", "W I",
+        "F M", "Y M", "W M",
+        "Y F", "W F",
+        "W Y",
+        
+        
+        "NA C", "NA P", "NA A", "NA G", "NA S", "NA T", "NA Q", "NA E", "NA N", "NA D", "NA H", "NA K", "NA R", "NA V", "NA L", "NA I", "NA M", "NA F", "NA Y"
+        )
+
+value = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34,
+          0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 
+          0.91, 0.51, 0.9, 1.92, 2.46, 1.78, 2.37, 2.17, 2.96, 2.92, 1.85, 2.76, 2.69, 2.42, 3.23, 3.18, 4.23, 
+          0.85, 1.7, 2.48, 2.78, 1.96, 2.37, 2.78, 3.54, 3.58, 2.76, 3.67, 3.6, 3.34, 4.14, 4.08, 5.13, 
+          0.89, 1.65, 2.06, 1.31, 1.87, 1.94, 2.71, 2.74, 2.15, 3.04, 2.95, 2.67, 3.45, 3.33, 4.38, 
+          1.12, 1.83, 1.4, 2.05, 1.32, 2.1, 2.03, 1.42, 2.25, 2.14, 1.86, 2.6, 2.45, 3.5,
+          0.84, 0.99, 1.47, 0.32, 1.06, 1.13, 2.13, 2.7, 2.57, 2.3, 2.81, 2.48, 3.42,
+          0.85, 0.9, 0.96, 1.14, 1.45, 2.97, 3.53, 3.39, 3.13, 3.59, 3.22, 4.08,
+          0.65, 1.29, 1.84, 2.04, 2.76, 3.49, 3.37, 3.08, 3.7, 3.42, 4.39, 
+          1.72, 2.05, 2.34, 3.4, 4.1, 3.98, 3.69, 4.27, 3.95, 4.88,
+          0.79, 0.82, 2.11, 2.59, 2.45, 2.19, 2.63, 2.27, 3.16,
+          0.4, 2.7, 2.98, 2.84, 2.63, 2.85, 2.42, 3.11,
+          2.43, 2.62, 2.49, 2.29, 2.47, 2.02, 2.72, 
+          0.91, 0.85, 0.62, 1.43, 1.52, 2.51,
+          0.14, 0.41, 0.63, 0.94, 1.73, 
+          0.29, 0.61, 0.86, 1.72,
+          0.82, 0.93, 1.89,
+          0.48, 1.11,
+          1.06,
+          
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          
+          1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34,
+          0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 
+          0.91, 0.51, 0.9, 1.92, 2.46, 1.78, 2.37, 2.17, 2.96, 2.92, 1.85, 2.76, 2.69, 2.42, 3.23, 3.18, 4.23, 
+          0.85, 1.7, 2.48, 2.78, 1.96, 2.37, 2.78, 3.54, 3.58, 2.76, 3.67, 3.6, 3.34, 4.14, 4.08, 5.13, 
+          0.89, 1.65, 2.06, 1.31, 1.87, 1.94, 2.71, 2.74, 2.15, 3.04, 2.95, 2.67, 3.45, 3.33, 4.38, 
+          1.12, 1.83, 1.4, 2.05, 1.32, 2.1, 2.03, 1.42, 2.25, 2.14, 1.86, 2.6, 2.45, 3.5,
+          0.84, 0.99, 1.47, 0.32, 1.06, 1.13, 2.13, 2.7, 2.57, 2.3, 2.81, 2.48, 3.42,
+          0.85, 0.9, 0.96, 1.14, 1.45, 2.97, 3.53, 3.39, 3.13, 3.59, 3.22, 4.08,
+          0.65, 1.29, 1.84, 2.04, 2.76, 3.49, 3.37, 3.08, 3.7, 3.42, 4.39, 
+          1.72, 2.05, 2.34, 3.4, 4.1, 3.98, 3.69, 4.27, 3.95, 4.88,
+          0.79, 0.82, 2.11, 2.59, 2.45, 2.19, 2.63, 2.27, 3.16,
+          0.4, 2.7, 2.98, 2.84, 2.63, 2.85, 2.42, 3.11,
+          2.43, 2.62, 2.49, 2.29, 2.47, 2.02, 2.72, 
+          0.91, 0.85, 0.62, 1.43, 1.52, 2.51,
+          0.14, 0.41, 0.63, 0.94, 1.73, 
+          0.29, 0.61, 0.86, 1.72,
+          0.82, 0.93, 1.89,
+          0.48, 1.11,
+          1.06,
+          
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          
+          )
+
+assign_hash(key, value, hash)
+
+
+###############
+
+get_Miyata = function(aminoacidsA, aminoacidsB) {
+  
+  AA_aligned = rbind(aminoacidsA, aminoacidsB)
+  
+  Miyata_sum = 0
+  Miyata_vector = c()
+
+  for (i in 1:ncol(AA_aligned)) {
+  
+    if (AAsA[1, i] == AAsB[1, i]) {
+#     print("Amino acids are conserved")
+    } else {
+        pairedAAs = paste(AA_aligned[1, i], AA_aligned[2,i])
+#       print(pairedAAs)
+    
+        Miyata = hash[[pairedAAs]]
+#       print(Miyata)
+        Miyata_vector = c(Miyata_vector, Miyata)
+#        Miyata_sum = Miyata_sum + Miyata
+      }
+  }
+#  print(Miyata_vector)
+  vectorsum = sum(Miyata_vector)
+#  print(vectorsum)
+#  print(Miyata_sum)
+#  cat("The total Miyata score is", vectorsum)
+
+  return(vectorsum) 
+}
+
+```
+
+###Tried to make it all in one function, but it doesn't work.
+####Maybe something about nesting the functions?
+```{r}
+############## 
+
+#run_all = function(fasta1, fasta2) {
+  
+#  print(fasta1)
+  
+#  print("hello")
+#  SequencesA = get_sequences(fasta1)
+#  print(SequencesA)
+#  SequencesB = get_sequences(fasta2)
+
+#  NucleotidesA = get_nucleotides(SequencesA)
+#  NucleotidesB = get_nucleotides(SequencesB)
+
+#  CodonsA = get_codons(SequencesA)
+#  CodonsB = get_codons(SequencesB)
+
+#  AAsA = get_AAs(CodonsA)
+#  AAsB = get_AAs(CodonsB)
+
+#  Total_Miyata = get_Miyata(AAsA, AAsB)
+  
+#}
+
+```
+#bam
+###With my smaller alignment that includes just mel, sim, yak, and eug as the outgroup.
+
+```{r, echo = FALSE, eval = FALSE}
+
+setwd("~/Miyata_scores/bam/melsimyakeug")
+
+###melanogaster and simulans
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dsim_aligned.fasta")
+
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelsim_smlalgn = Total_Miyata
+
+######melanogaster and yakuba
+
+setwd("~/Miyata_scores/bam/melsimyakeug")
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dyak_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelyak_smlalgn = Total_Miyata
+
+######melanogaster and eugracilis
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammeleug_smlalgn = Total_Miyata
+
+######simulans and yakuba
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dyak_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimyak_smlalgn = Total_Miyata
+
+######simulans and eugracilis
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimeug_smlalgn = Total_Miyata
+
+######yakuba and eugracilis
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyakeug_smlalgn = Total_Miyata
+```
+
+#Looking at sequences that were aligned to a greater group of species (the ones from the original analysis we did by hand)
+####It should be the same. I really hope.
+```{r, echo = FALSE, eval = FALSE}
+
+setwd("~/Miyata_scores/bam/Alignment_and_Ancestral/melgrouppse")
+
+###melanogaster and simulans
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dsim_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelsim_Miyata = Total_Miyata
+
+######melanogaster and yakuba
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dyak_aligned.fasta")
+
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelyake_Miyata = Total_Miyata
+
+######melanogaster and eugracilis
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammeleug_Miyata = Total_Miyata
+
+######melanogaster and sechelia
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelsec_Miyata = Total_Miyata
+
+######melanogaster and erecta
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelere_Miyata = Total_Miyata
+
+######melanogaster and pseudoobscura
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelpse_Miyata = Total_Miyata
+
+######simulans and yakuba
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dyak_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimyak_Miyata = Total_Miyata
+
+######simulans and eugracilis
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimeug_Miyata = Total_Miyata
+
+######simulans and sechelia
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimsec_Miyata = Total_Miyata
+
+######simulans and erecta
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimere_Miyata = Total_Miyata
+
+######simulans and pseudoobscura
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimpse_Miyata = Total_Miyata
+
+######yakuba and eugracilis
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyakeug_Miyata = Total_Miyata
+
+######yakuba and sechelia
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyaksec_Miyata = Total_Miyata
+
+######yakuba and erecta
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyakere_Miyata = Total_Miyata
+
+######yakuba and psuedoobscura
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyakpse_Miyata = Total_Miyata
+
+######eugracilis and sechelia
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bameugsec_Miyata = Total_Miyata
+
+######eugracilis and erecta
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bameugere_Miyata = Total_Miyata
+
+######eugracilis and pseudoobscura
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bameugpse_Miyata = Total_Miyata
+
+######sechelia and erecta
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsecere_Miyata = Total_Miyata
+
+######sechelia and pseudoobscura
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsecpse_Miyata = Total_Miyata
+
+###erecta and pseudoobscura
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamerepse_Miyata = Total_Miyata
+```
+
+###Let's make a super simple heat map of this info
+```{r, echo = FALSE, eval = FALSE}
+library(ggplot2)
+
+Bamextantspecies = expand.grid(speciesA = c("pseudoobscura", "eugracilis", "yakuba", "erecta", "melanogaster", "simulans", "sechellia"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"))
+
+Bamextantspecies$Miyata = c(333.69, 245.73, 140.69, 142.76, 89.63, 17.12, NA, 337.2, 251.53, 145.83, 147.73, 99.9, NA, NA, 335.24, 238.82, 149.18, 155.4, NA, NA, NA, 307.85, 205.28, 67.07, NA, NA, NA, NA, 311.71, 207.76, NA, NA, NA, NA, NA, 286.95, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA )
+
+Bamrng = range(Bamextantspecies$Miyata, rm.na = TRUE)
+
+ggplot(data = Bamextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: Total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(Bamrng[1]), ceiling(Bamrng[2])))
+
+```
+###Want to switch the order of the species on the x-axis so sec and sec line up in the corner together.
+```{r}
+
+library(ggplot2)
+
+Bamextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"))
+
+Bamextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, Bamsimsec_Miyata, NA, NA, NA, NA, NA, NA, Bammelsec_Miyata, Bammelsim_Miyata, NA, NA, NA, NA, NA, Bamsecere_Miyata, Bamsimere_Miyata, Bammelere_Miyata, NA, NA, NA, NA, Bamyaksec_Miyata, Bamsimyak_Miyata, Bammelyake_Miyata, Bamyakere_Miyata, NA, NA, NA, Bameugsec_Miyata, Bamsimeug_Miyata, Bammeleug_Miyata, Bameugere_Miyata, Bamyakeug_Miyata, NA, NA, Bamsecpse_Miyata, Bamsimpse_Miyata, Bammelpse_Miyata, Bamerepse_Miyata, Bamyakpse_Miyata, Bameugpse_Miyata, NA)
+
+Bamrng = range(Bamextantspecies$Miyata, rm.na = TRUE)
+
+ggplot(data = Bamextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(Bamrng[1]), ceiling(Bamrng[2])))
+
+```
+
+#Nup37
+##Aligned with mel, sim, sec, yak, ere, ana, and pse
+```{r}
+
+setwd("~/Miyata_scores/Nup37")
+
+######mel and sim
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dsim_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupmelsim_Miyata = Total_Miyata
+
+###mel and yak
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dyak_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupmelyak_Miyata = Total_Miyata
+
+###mel and sec
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupmelsec_Miyata = Total_Miyata
+
+###mel and ere
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupmelere_Miyata = Total_Miyata
+
+###mel and pse
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupmelpse_Miyata = Total_Miyata
+
+###sim and yak
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dyak_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupsimyak_Miyata = Total_Miyata
+
+###sim and sec
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupsimsec_Miyata = Total_Miyata
+
+###sim and ere
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupsimere_Miyata = Total_Miyata
+
+###sim and pse
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupsimpse_Miyata = Total_Miyata
+
+###yak and sec
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupyaksec_Miyata = Total_Miyata
+
+###yak and ere
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupyakere_Miyata = Total_Miyata
+
+###yak and pse
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupyakpse_Miyata = Total_Miyata
+
+###sec and ere
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupsecere_Miyata = Total_Miyata
+
+###sec and pse
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupsecpse_Miyata = Total_Miyata
+
+###ere and pse
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nuperepse_Miyata = Total_Miyata
+
+###ana and mel
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dmel_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupanamel_Miyata = Total_Miyata
+
+###ana and sim
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dsim_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupanasim_Miyata = Total_Miyata
+
+###ana and sec
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupanasec_Miyata = Total_Miyata
+
+###ana and yak
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dyak_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupanayak_Miyata = Total_Miyata
+
+###ana and ere
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupanaere_Miyata = Total_Miyata
+
+###ana and pse
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Nupanapse_Miyata = Total_Miyata
+```
+
+```{r, echo = FALSE, eval = FALSE}
+library(ggplot2)
+
+Nupextantspecies = expand.grid(speciesA = c("pseudoobscura", "ananassae", "yakuba", "erecta", "melanogaster", "simulans", "sechellia"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+Nupextantspecies$Miyata = c(Nupsecpse_Miyata, Nupanasec_Miyata, Nupyaksec_Miyata, Nupsecere_Miyata, Nupmelsec_Miyata, Nupsimsec_Miyata, NA, Nupsimpse_Miyata, Nupanasim_Miyata, Nupsimyak_Miyata, Nupsimere_Miyata, Nupmelsim_Miyata, NA, NA, Nupmelpse_Miyata, Nupanamel_Miyata, Nupmelyak_Miyata, Nupmelere_Miyata, NA, NA, NA, Nuperepse_Miyata, Nupanaere_Miyata, Nupyakere_Miyata, NA, NA, NA, NA, Nupyakpse_Miyata, Nupanayak_Miyata, NA, NA, NA, NA, NA, Nupanapse_Miyata, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+Nuprng = range(Nupextantspecies$Miyata, na.rm = TRUE)
+
+ggplot(data = Nupextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Nup37: Total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(Nuprng[1]), ceiling(Nuprng[2])))
+
+```
+
+###What the entire matrix looks like
+extantspecies$Miyata = c(secpse_Miyata, anasec_Miyata, yaksec_Miyata, secere_Miyata, melsec_Miyata, simsec_Miyata, NA, simpse_Miyata, anasim_Miyata, simyak_Miyata, simere_Miyata, melsim_Miyata, NA, simsec_Miyata, melpse_Miyata, anamel_Miyata, melyak_Miyata, melere_Miyata, NA, melsim_Miyata, melsec_Miyata, erepse_Miyata, anaere_Miyata, yakere_Miyata, NA, melere_Miyata, simere_Miyata, secere_Miyata, yakpse_Miyata, anayak_Miyata, NA, yakere_Miyata, melyak_Miyata, simyak_Miyata, yaksec_Miyata, anapse_Miyata, anayak_Miyata, anaere_Miyata, anamel_Miyata, anasim_Miyata, anasec_Miyata, NA, anapse_Miyata, yakpse_Miyata, erepse_Miyata, melpse_Miyata, simpse_Miyata, secpse_Miyata)
+
+###Changing the order of the x-axis species
+```{r}
+
+library(ggplot2)
+
+Nupextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+Nupextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, Nupsimsec_Miyata, NA, NA, NA, NA, NA, NA, Nupmelsec_Miyata, Nupmelsim_Miyata, NA, NA, NA, NA, NA, Nupsecere_Miyata, Nupsimere_Miyata, Nupmelere_Miyata, NA, NA, NA, NA, Nupyaksec_Miyata, Nupsimyak_Miyata, Nupmelyak_Miyata, Nupyakere_Miyata, NA, NA, NA, Nupanasec_Miyata, Nupanasim_Miyata, Nupanamel_Miyata, Nupanaere_Miyata, Nupanayak_Miyata, NA, NA, Nupsecpse_Miyata, Nupsimpse_Miyata, Nupmelpse_Miyata, Nuperepse_Miyata, Nupyakpse_Miyata, Nupanapse_Miyata, NA)
+
+Nuprng = range(Nupextantspecies$Miyata, rm.na = TRUE)
+
+ggplot(data = Nupextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Nup37: total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(Nuprng[1]), ceiling(Nuprng[2])))
+
+```
+
+
+#CG13607
+##Aligned with mel, sim, sec, yak, ere, ana, and pse
+
+```{r}
+
+setwd("~/Miyata_scores/CG13607")
+
+###mel and sim
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dsim_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelsim_Miyata = Total_Miyata
+
+###mel and yak
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dyak_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelyak_Miyata = Total_Miyata
+
+###mel and sec
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelsec_Miyata = Total_Miyata
+
+###mel and ere
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelere_Miyata = Total_Miyata
+
+###mel and pse
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelpse_Miyata = Total_Miyata
+
+###sim and yak
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dyak_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimyak_Miyata = Total_Miyata
+
+###sim and sec
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimsec_Miyata = Total_Miyata
+
+###sim and ere
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimere_Miyata = Total_Miyata
+
+###sim and pse
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimpse_Miyata = Total_Miyata
+
+###yak and sec
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGyaksec_Miyata = Total_Miyata
+
+###yak and ere
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGyakere_Miyata = Total_Miyata
+
+###yak and pse
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGyakpse_Miyata = Total_Miyata
+
+###sec and ere
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsecere_Miyata = Total_Miyata
+
+###sec and pse
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsecpse_Miyata = Total_Miyata
+
+###ere and pse
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGerepse_Miyata = Total_Miyata
+
+###ana and mel
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dmel_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGanamel_Miyata = Total_Miyata
+
+###ana and sim
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dsim_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGanasim_Miyata = Total_Miyata
+
+###ana and sec
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dsec_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGanasec_Miyata = Total_Miyata
+
+###ana and yak
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dyak_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGanayak_Miyata = Total_Miyata
+
+###ana and ere
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dere_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGanaere_Miyata = Total_Miyata
+
+###ana and pse
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Dpse_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGanapse_Miyata = Total_Miyata
+```
+
+```{r, echo = FALSE, eval = FALSE}
+library(ggplot2)
+
+CGextantspecies = expand.grid(speciesA = c("pseudoobscura", "ananassae", "yakuba", "erecta", "melanogaster", "simulans", "sechellia"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+CGextantspecies$Miyata = c(CGsecpse_Miyata, CGanasec_Miyata, CGyaksec_Miyata, CGsecere_Miyata, CGmelsec_Miyata, CGsimsec_Miyata, NA, CGsimpse_Miyata, CGanasim_Miyata, CGsimyak_Miyata, CGsimere_Miyata, CGmelsim_Miyata, NA, NA, CGmelpse_Miyata, CGanamel_Miyata, CGmelyak_Miyata, CGmelere_Miyata, NA, NA, NA, CGerepse_Miyata, CGanaere_Miyata, CGyakere_Miyata, NA, NA, NA, NA, CGyakpse_Miyata, CGanayak_Miyata, NA, NA, NA, NA, NA, CGanapse_Miyata, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+CGrng = range(CGextantspecies$Miyata, na.rm = TRUE)
+
+ggplot(data = CGextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("CG13607: Total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(CGrng[1]), ceiling(CGrng[2])))
+
+```
+
+###Changing the order of the x-axis species
+```{r}
+
+library(ggplot2)
+
+CGextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+CGextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, CGsimsec_Miyata, NA, NA, NA, NA, NA, NA, CGmelsec_Miyata, CGmelsim_Miyata, NA, NA, NA, NA, NA, CGsecere_Miyata, CGsimere_Miyata, CGmelere_Miyata, NA, NA, NA, NA, CGyaksec_Miyata, CGsimyak_Miyata, CGmelyak_Miyata, CGyakere_Miyata, NA, NA, NA, CGanasec_Miyata, CGanasim_Miyata, CGanamel_Miyata, CGanaere_Miyata, CGanayak_Miyata, NA, NA, CGsecpse_Miyata, CGsimpse_Miyata, CGmelpse_Miyata, CGerepse_Miyata, CGyakpse_Miyata, CGanapse_Miyata, NA)
+
+CGrng = range(CGextantspecies$Miyata, rm.na = TRUE)
+
+ggplot(data = CGextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("CG13607: total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(CGrng[1]), ceiling(CGrng[2])))
+
+```
+
+
+
+#Heat map all on the same scale
+```{r}
+
+Bamextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"))
+
+Bamextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, Bamsimsec_Miyata, NA, NA, NA, NA, NA, NA, Bammelsec_Miyata, Bammelsim_Miyata, NA, NA, NA, NA, NA, Bamsecere_Miyata, Bamsimere_Miyata, Bammelere_Miyata, NA, NA, NA, NA, Bamyaksec_Miyata, Bamsimyak_Miyata, Bammelyake_Miyata, Bamyakere_Miyata, NA, NA, NA, Bameugsec_Miyata, Bamsimeug_Miyata, Bammeleug_Miyata, Bameugere_Miyata, Bamyakeug_Miyata, NA, NA, Bamsecpse_Miyata, Bamsimpse_Miyata, Bammelpse_Miyata, Bamerepse_Miyata, Bamyakpse_Miyata, Bameugpse_Miyata, NA)
+
+#############
+
+Nupextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+Nupextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, Nupsimsec_Miyata, NA, NA, NA, NA, NA, NA, Nupmelsec_Miyata, Nupmelsim_Miyata, NA, NA, NA, NA, NA, Nupsecere_Miyata, Nupsimere_Miyata, Nupmelere_Miyata, NA, NA, NA, NA, Nupyaksec_Miyata, Nupsimyak_Miyata, Nupmelyak_Miyata, Nupyakere_Miyata, NA, NA, NA, Nupanasec_Miyata, Nupanasim_Miyata, Nupanamel_Miyata, Nupanaere_Miyata, Nupanayak_Miyata, NA, NA, Nupsecpse_Miyata, Nupsimpse_Miyata, Nupmelpse_Miyata, Nuperepse_Miyata, Nupyakpse_Miyata, Nupanapse_Miyata, NA)
+
+#############
+
+CGextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+CGextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, CGsimsec_Miyata, NA, NA, NA, NA, NA, NA, CGmelsec_Miyata, CGmelsim_Miyata, NA, NA, NA, NA, NA, CGsecere_Miyata, CGsimere_Miyata, CGmelere_Miyata, NA, NA, NA, NA, CGyaksec_Miyata, CGsimyak_Miyata, CGmelyak_Miyata, CGyakere_Miyata, NA, NA, NA, CGanasec_Miyata, CGanasim_Miyata, CGanamel_Miyata, CGanaere_Miyata, CGanayak_Miyata, NA, NA, CGsecpse_Miyata, CGsimpse_Miyata, CGmelpse_Miyata, CGerepse_Miyata, CGyakpse_Miyata, CGanapse_Miyata, NA)
+
+#############
+
+all_Miyata = cbind(Bamextantspecies$Miyata, Nupextantspecies$Miyata, CGextantspecies$Miyata)
+rng = range(all_Miyata, na.rm = TRUE)
+
+
+
+ggplot(data = Bamextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "blue1", high = "blue4", limits = c(floor(rng[1]), ceiling(rng[2])))
+
+ggplot(data = Nupextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Nup37: Total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "blue1", high = "blue4", limits = c(floor(rng[1]), ceiling(rng[2])))
+
+
+ggplot(data = CGextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("CG13607: Total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "blue1", high = "blue4", limits = c(floor(rng[1]), ceiling(rng[2])))
+
+```
+#Heat map all on the same scale AND scaled by gene size
+##Not sure if the scaling is proper. Some pairs of sequences will have NA in both, giving a Miyata score of 0. The Miyata score should then be divided by the length of the gene that actually has amino acids and not include these gaps. In other cases, there will be pairs with NA in one sequence and an amino acid in the other, giving a Miyata score of 0 (I don't think there are any cases in which there are amino acids with no gaps in either sequence for the entire alignment length). We should also note that this probably affects bam a lot more than the others because the control genes have fewer (or no?) gaps.
+##We can revisit and adjust accordingly.
+```{r}
+
+Bamextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"))
+
+Bamextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, round(Bamsimsec_Miyata/495, digits = 3), NA, NA, NA, NA, NA, NA, round(Bammelsec_Miyata/495, digits = 3), round(Bammelsim_Miyata/495, digits = 3), NA, NA, NA, NA, NA, round(Bamsecere_Miyata/495, digits = 3), round(Bamsimere_Miyata/495, digits = 3), round(Bammelere_Miyata/495, digits = 3), NA, NA, NA, NA, round(Bamyaksec_Miyata/495, digits = 3), round(Bamsimyak_Miyata/495, digits = 3), round(Bammelyake_Miyata/495, digits = 3), round(Bamyakere_Miyata/495, digits = 3), NA, NA, NA, round(Bameugsec_Miyata/495, digits = 3), round(Bamsimeug_Miyata/495, digits = 3), round(Bammeleug_Miyata/495, digits = 3), round(Bameugere_Miyata/495, digits = 3), round(Bamyakeug_Miyata/495, digits = 3), NA, NA, round(Bamsecpse_Miyata/495, digits = 3), round(Bamsimpse_Miyata/495, digits = 3), round(Bammelpse_Miyata/495, digits = 3), round(Bamerepse_Miyata/495, digits = 3), round(Bamyakpse_Miyata/495, digits = 3), round(Bameugpse_Miyata/495, digits = 3), NA)
+
+#############
+
+Nupextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+Nupextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, round(Nupsimsec_Miyata/323, digits = 3), NA, NA, NA, NA, NA, NA, round(Nupmelsec_Miyata/323, digits = 3), round(Nupmelsim_Miyata/323, digits = 3), NA, NA, NA, NA, NA, round(Nupsecere_Miyata/323, digits = 3), round(Nupsimere_Miyata/323, digits = 3), round(Nupmelere_Miyata/323, digits = 3), NA, NA, NA, NA, round(Nupyaksec_Miyata/323, digits = 3), round(Nupsimyak_Miyata/323, digits = 3), round(Nupmelyak_Miyata/323, digits = 3), round(Nupyakere_Miyata/323, digits = 3), NA, NA, NA, round(Nupanasec_Miyata/323, digits = 3), round(Nupanasim_Miyata/323, digits = 3), round(Nupanamel_Miyata/323, digits = 3), round(Nupanaere_Miyata/323, digits = 3), round(Nupanayak_Miyata/323, digits = 3), NA, NA, round(Nupsecpse_Miyata/323, digits = 3), round(Nupsimpse_Miyata/323, digits = 3), round(Nupmelpse_Miyata/323, digits = 3), round(Nuperepse_Miyata/323, digits = 3), round(Nupyakpse_Miyata/323, digits = 3), round(Nupanapse_Miyata/323, digits = 3), NA)
+
+#############
+
+CGextantspecies = expand.grid(speciesA = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"), 
+                            speciesB = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+CGextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, round(CGsimsec_Miyata/562, digits = 3), NA, NA, NA, NA, NA, NA, round(CGmelsec_Miyata/562, digits = 3), round(CGmelsim_Miyata/562, digits = 3), NA, NA, NA, NA, NA, round(CGsecere_Miyata/562, digits = 3), round(CGsimere_Miyata/562, digits = 3), round(CGmelere_Miyata/562, digits = 3), NA, NA, NA, NA, round(CGyaksec_Miyata/562, digits = 3), round(CGsimyak_Miyata/562, digits = 3), round(CGmelyak_Miyata/562, digits = 3), round(CGyakere_Miyata/562, digits = 3), NA, NA, NA, round(CGanasec_Miyata/562, digits = 3), round(CGanasim_Miyata/562, digits = 3), round(CGanamel_Miyata/562, digits = 3), round(CGanaere_Miyata/562, digits = 3), round(CGanayak_Miyata/562, digits = 3), NA, NA, round(CGsecpse_Miyata/562, digits = 3), round(CGsimpse_Miyata/562, digits = 3), round(CGmelpse_Miyata/562, digits = 3), round(CGerepse_Miyata/562, digits = 3), round(CGyakpse_Miyata/562, digits = 3), round(CGanapse_Miyata/562, digits = 3), NA)
+
+#############
+
+all_Miyata = cbind(Bamextantspecies$Miyata, Nupextantspecies$Miyata, CGextantspecies$Miyata)
+rng = range(all_Miyata, na.rm = TRUE)
+
+
+
+ggplot(data = Bamextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores | scaled to alignment length | pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "darkorchid1", high = "darkorchid4", limits = c(floor(rng[1]), ceiling(rng[2])))
+
+ggplot(data = Nupextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Nup37: Total Miyata scores | scaled to alignment length | pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "darkorchid1", high = "darkorchid4", limits = c(floor(rng[1]), ceiling(rng[2])))
+
+
+ggplot(data = CGextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("CG13607: Total Miyata scores | scaled to alignment length | pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "darkorchid1", high = "darkorchid4", limits = c(floor(rng[1]), ceiling(rng[2])))
+
+```
+
+
+#Working with predicted ancestral sequences!
+#bam
+###I have these sequences already from running PAML previously.
+####Used PRANK to align mel, sim, sec, yak, ere, eug, and pse. Reconstructed with PAML. Nodes are the predicted ancestral sequences; see powerpoint or Benchling for where they are on the tree.
+
+##melanogaster
+###mel and Node 11
+```{r}
+
+setwd("~/Miyata_scores/bam/Alignment_and_Ancestral/melgrouppse")
+
+##melanogaster
+###mel and Node 11
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BammelNode11_Miyata = Total_Miyata
+print(BammelNode11_Miyata)
+
+###mel and Node 10
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BammelNode10_Miyata = Total_Miyata
+print(BammelNode10_Miyata)
+
+###mel and Node 9
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Node9_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BammelNode9_Miyata = Total_Miyata
+print(BammelNode9_Miyata)
+
+##simulans
+###sim and Node 12
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node12_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode12_Miyata = Total_Miyata
+print(BamsimNode12_Miyata)
+
+###sim and Node 11
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode11_Miyata = Total_Miyata
+print(BamsimNode11_Miyata)
+
+###sim and Node 10
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode10_Miyata = Total_Miyata
+print(BamsimNode10_Miyata)
+
+###sim and Node 9
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node9_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode9_Miyata = Total_Miyata
+print(BamsimNode9_Miyata)
+
+##sechellia
+###sec and Node 12
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node12_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode12_Miyata = Total_Miyata
+print(BamsecNode12_Miyata)
+
+###sec and Node 11
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode11_Miyata = Total_Miyata
+print(BamsecNode11_Miyata)
+
+###sec and Node 10
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode10_Miyata = Total_Miyata
+print(BamsecNode10_Miyata)
+
+###sec and Node 9
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node9_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode9_Miyata = Total_Miyata
+print(BamsecNode9_Miyata)
+
+##yakuba
+###yak and Node 13
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Node13_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamyakNode13_Miyata = Total_Miyata
+print(BamyakNode13_Miyata)
+
+###yak and Node 10
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamyakNode10_Miyata = Total_Miyata
+print(BamyakNode10_Miyata)
+
+###yak and Node 9
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Node9_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamyakNode9_Miyata = Total_Miyata
+print(BamyakNode9_Miyata)
+
+##ere
+###ere and Node 13
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Node13_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamereNode13_Miyata = Total_Miyata
+print(BamereNode13_Miyata)
+
+###ere and Node 10
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamereNode10_Miyata = Total_Miyata
+print(BamereNode10_Miyata)
+
+###ere and Node 9
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Node9_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamereNode9_Miyata = Total_Miyata
+print(BamereNode9_Miyata)
+
+###eug and Node 9
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Node9_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BameugNode9_Miyata = Total_Miyata
+print(BameugNode9_Miyata)
+```
+
+##graphing
+```{r}
+library(ggplot2)
+
+Bamancestral = expand.grid(Predicted_Ancestral_Sequence = c("Node #9", "Node #10", "Node #11", "Node #12", "Node #13"), 
+                            Extant_Species = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "eugracilis", "pseudoobscura"))
+
+Bamancestral$Miyata = c(BamsecNode9_Miyata, BamsecNode10_Miyata, BamsecNode11_Miyata, BamsecNode12_Miyata, NA, BamsimNode9_Miyata, BamsimNode10_Miyata, BamsimNode11_Miyata, BamsimNode12_Miyata, NA, BammelNode9_Miyata, BammelNode10_Miyata, BammelNode11_Miyata, NA, NA, BamereNode9_Miyata, BamereNode10_Miyata, NA, NA, BamereNode13_Miyata, BamyakNode9_Miyata, BamyakNode10_Miyata, NA, NA, BamyakNode13_Miyata, BameugNode9_Miyata, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+BamAncrng = range(Bamancestral$Miyata, rm.na = TRUE)
+
+ggplot(data = Bamancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores, pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(BamAncrng[1]), ceiling(BamAncrng[2])))
+
+
+
+```
+
+
+#Nup37
+
+```{r}
+
+setwd("~/Miyata_scores/Nup37")
+
+##melanogaster
+###mel and Node 11
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Node11_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupmelNode11_Miyata = Total_Miyata
+print(NupmelNode11_Miyata)
+
+###mel and Node 10
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupmelNode10_Miyata = Total_Miyata
+print(NupmelNode10_Miyata)
+
+###mel and Node 9
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupmelNode9_Miyata = Total_Miyata
+print(NupmelNode9_Miyata)
+
+##simulans
+###sim and Node 12
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node12_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsimNode12_Miyata = Total_Miyata
+print(NupsimNode12_Miyata)
+
+###sim and Node 11
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node11_alignedana.fasta")
+
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsimNode11_Miyata = Total_Miyata
+print(NupsimNode11_Miyata)
+
+###sim and Node 10
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsimNode10_Miyata = Total_Miyata
+print(NupsimNode10_Miyata)
+
+###sim and Node 9
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsimNode9_Miyata = Total_Miyata
+print(NupsimNode9_Miyata)
+
+##sechellia
+###sec and Node 12
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node12_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsecNode12_Miyata = Total_Miyata
+print(NupsecNode12_Miyata)
+
+###sec and Node 11
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node11_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsecNode11_Miyata = Total_Miyata
+print(NupsecNode11_Miyata)
+
+###sec and Node 10
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsecNode10_Miyata = Total_Miyata
+print(NupsecNode10_Miyata)
+
+###sec and Node 9
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupsecNode9_Miyata = Total_Miyata
+print(NupsecNode9_Miyata)
+
+##yakuba
+###yak and Node 13
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Node13_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupyakNode13_Miyata = Total_Miyata
+print(NupyakNode13_Miyata)
+
+###yak and Node 10
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupyakNode10_Miyata = Total_Miyata
+print(NupyakNode10_Miyata)
+
+###yak and Node 9
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupyakNode9_Miyata = Total_Miyata
+print(NupyakNode9_Miyata)
+
+##ere
+###ere and Node 13
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Node13_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupereNode13_Miyata = Total_Miyata
+print(NupereNode13_Miyata)
+
+###ere and Node 10
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupereNode10_Miyata = Total_Miyata
+print(NupereNode10_Miyata)
+
+###ere and Node 9
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupereNode9_Miyata = Total_Miyata
+print(NupereNode9_Miyata)
+
+###ana and Node 9
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+NupeugNode9_Miyata = Total_Miyata
+print(NupeugNode9_Miyata)
+```
+
+##graphing
+```{r}
+library(ggplot2)
+
+Nupancestral = expand.grid(Predicted_Ancestral_Sequence = c("Node #9", "Node #10", "Node #11", "Node #12", "Node #13"), 
+                            Extant_Species = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+Nupancestral$Miyata = c(NupsecNode9_Miyata, NupsecNode10_Miyata, NupsecNode11_Miyata, NupsecNode12_Miyata, NA, NupsimNode9_Miyata, NupsimNode10_Miyata, NupsimNode11_Miyata, NupsimNode12_Miyata, NA, NupmelNode9_Miyata, NupmelNode10_Miyata, NupmelNode11_Miyata, NA, NA, NupereNode9_Miyata, NupereNode10_Miyata, NA, NA, NupereNode13_Miyata, NupyakNode9_Miyata, NupyakNode10_Miyata, NA, NA, NupyakNode13_Miyata, NupeugNode9_Miyata, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+NupAncrng = range(Nupancestral$Miyata, rm.na = TRUE)
+
+ggplot(data = Nupancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Nup37: total Miyata scores, pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(NupAncrng[1]), ceiling(NupAncrng[2])))
+
+
+
+```
+
+#CG13607
+```{r}
+
+setwd("~/Miyata_scores/CG13607")
+
+###mel and Node 11
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Node11_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelNode11_Miyata = Total_Miyata
+print(CGmelNode11_Miyata)
+
+###mel and Node 10
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelNode10_Miyata = Total_Miyata
+print(CGmelNode10_Miyata)
+
+###mel and Node 9
+
+SequencesA = get_sequences("Dmel_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGmelNode9_Miyata = Total_Miyata
+print(CGmelNode9_Miyata)
+
+##simulans
+###sim and Node 12
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node12_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimNode12_Miyata = Total_Miyata
+print(CGsimNode12_Miyata)
+
+###sim and Node 11
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node11_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimNode11_Miyata = Total_Miyata
+print(CGsimNode11_Miyata)
+
+###sim and Node 10
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimNode10_Miyata = Total_Miyata
+print(CGsimNode10_Miyata)
+
+###sim and Node 9
+
+SequencesA = get_sequences("Dsim_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsimNode9_Miyata = Total_Miyata
+print(CGsimNode9_Miyata)
+
+##sechellia
+###sec and Node 12
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node12_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsecNode12_Miyata = Total_Miyata
+print(CGsecNode12_Miyata)
+
+###sec and Node 11
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node11_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsecNode11_Miyata = Total_Miyata
+print(CGsecNode11_Miyata)
+
+###sec and Node 10
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsecNode10_Miyata = Total_Miyata
+print(CGsecNode10_Miyata)
+
+###sec and Node 9
+
+SequencesA = get_sequences("Dsec_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGsecNode9_Miyata = Total_Miyata
+print(CGsecNode9_Miyata)
+
+##yakuba
+###yak and Node 13
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Node13_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGyakNode13_Miyata = Total_Miyata
+print(CGyakNode13_Miyata)
+
+###yak and Node 10
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGyakNode10_Miyata = Total_Miyata
+print(CGyakNode10_Miyata)
+
+###yak and Node 9
+
+SequencesA = get_sequences("Dyak_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGyakNode9_Miyata = Total_Miyata
+print(CGyakNode9_Miyata)
+
+##ere
+###ere and Node 13
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Node13_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGereNode13_Miyata = Total_Miyata
+print(CGereNode13_Miyata)
+
+###ere and Node 10
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Node10_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGereNode10_Miyata = Total_Miyata
+print(CGereNode10_Miyata)
+
+###ere and Node 9
+
+SequencesA = get_sequences("Dere_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGereNode9_Miyata = Total_Miyata
+print(CGereNode9_Miyata)
+
+###ana and Node 9
+
+SequencesA = get_sequences("Dana_alignedana.fasta")
+SequencesB = get_sequences("Node9_alignedana.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+CGeugNode9_Miyata = Total_Miyata
+print(CGeugNode9_Miyata)
+```
+
+##graphing
+```{r}
+library(ggplot2)
+
+CGancestral = expand.grid(Predicted_Ancestral_Sequence = c("Node #9", "Node #10", "Node #11", "Node #12", "Node #13"), 
+                            Extant_Species = c("sechellia", "simulans", "melanogaster", "erecta", "yakuba", "ananassae", "pseudoobscura"))
+
+CGancestral$Miyata = c(CGsecNode9_Miyata, CGsecNode10_Miyata, CGsecNode11_Miyata, CGsecNode12_Miyata, NA, CGsimNode9_Miyata, CGsimNode10_Miyata, CGsimNode11_Miyata, CGsimNode12_Miyata, NA, CGmelNode9_Miyata, CGmelNode10_Miyata, CGmelNode11_Miyata, NA, NA, CGereNode9_Miyata, CGereNode10_Miyata, NA, NA, CGereNode13_Miyata, CGyakNode9_Miyata, CGyakNode10_Miyata, NA, NA, CGyakNode13_Miyata, CGeugNode9_Miyata, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+CGAncrng = range(CGancestral$Miyata, rm.na = TRUE)
+
+ggplot(data = CGancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("CG13607: total Miyata scores, pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(CGAncrng[1]), ceiling(CGAncrng[2])))
+```
+
+
+```{r}
+
+
+all_ancestral_Miyata = cbind(Bamancestral$Miyata, Nupancestral$Miyata, CGancestral$Miyata)
+rng_ancestral = range(all_ancestral_Miyata, na.rm = TRUE)
+
+
+
+ggplot(data = Bamancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores, pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "blue1", high = "blue4", limits = c(floor(rng_ancestral[1]), ceiling(rng_ancestral[2])))
+
+ggplot(data = Nupancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Nup37: Total Miyata scores, pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "blue1", high = "blue4", limits = c(floor(rng_ancestral[1]), ceiling(rng_ancestral[2])))
+
+
+ggplot(data = CGancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("CG13607: Total Miyata scores, pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "blue1", high = "blue4", limits = c(floor(rng_ancestral[1]), ceiling(rng_ancestral[2])))
+
+
+```
+
+#Scaling to alingment length
+###Same concern as before about the comparisons
+```{r}
+
+Bamancestral$Miyata = c(round(BamsecNode9_Miyata/495, digits = 3), round(BamsecNode10_Miyata/495, digits = 3), round(BamsecNode11_Miyata/495, digits = 3), round(BamsecNode12_Miyata/495, digits = 3), NA, round(BamsimNode9_Miyata/495, digits = 3), round(BamsimNode10_Miyata/495, digits = 3), round(BamsimNode11_Miyata/495, digits = 3), round(BamsimNode12_Miyata/495, digits = 3), NA, round(BammelNode9_Miyata/495, digits = 3), round(BammelNode10_Miyata/495, digits = 3), round(BammelNode11_Miyata/495, digits = 3), NA, NA, round(BamereNode9_Miyata/495, digits = 3), round(BamereNode10_Miyata/495, digits = 3), NA, NA, round(BamereNode13_Miyata/495, digits = 3), round(BamyakNode9_Miyata/495, digits = 3), round(BamyakNode10_Miyata/495, digits = 3), NA, NA, round(BamyakNode13_Miyata/495, digits = 3), round(BameugNode9_Miyata/495, digits = 3), NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+Nupancestral$Miyata = c(round(NupsecNode9_Miyata/323, digits = 3), round(NupsecNode10_Miyata/323, digits = 3), round(NupsecNode11_Miyata/323, digits = 3), round(NupsecNode12_Miyata/323, digits = 3), NA, round(NupsimNode9_Miyata/323, digits = 3), round(NupsimNode10_Miyata/323, digits = 3), round(NupsimNode11_Miyata/323, digits = 3), round(NupsimNode12_Miyata/323, digits = 3), NA, round(NupmelNode9_Miyata/323, digits = 3), round(NupmelNode10_Miyata/323, digits = 3), round(NupmelNode11_Miyata/323, digits = 3), NA, NA, round(NupereNode9_Miyata/323, digits = 3), round(NupereNode10_Miyata/323, digits = 3), NA, NA, round(NupereNode13_Miyata/323, digits = 3), round(NupyakNode9_Miyata/323, digits = 3), round(NupyakNode10_Miyata/323, digits = 3), NA, NA, round(NupyakNode13_Miyata/323, digits = 3), round(NupeugNode9_Miyata/323, digits = 3), NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+CGancestral$Miyata = c(round(CGsecNode9_Miyata/562, digits = 3), round(CGsecNode10_Miyata/562, digits = 3), round(CGsecNode11_Miyata/562, digits = 3), round(CGsecNode12_Miyata/562, digits = 3), NA, round(CGsimNode9_Miyata/562, digits = 3), round(CGsimNode10_Miyata/562, digits = 3), round(CGsimNode11_Miyata/562, digits = 3), round(CGsimNode12_Miyata/562, digits = 3), NA, round(CGmelNode9_Miyata/562, digits = 3), round(CGmelNode10_Miyata/562, digits = 3), round(CGmelNode11_Miyata/562, digits = 3), NA, NA, round(CGereNode9_Miyata/562, digits = 3), round(CGereNode10_Miyata/562, digits = 3), NA, NA, round(CGereNode13_Miyata/562, digits = 3), round(CGyakNode9_Miyata/562, digits = 3), round(CGyakNode10_Miyata/562, digits = 3), NA, NA, round(CGyakNode13_Miyata/562, digits = 3), round(CGeugNode9_Miyata/562, digits = 3), NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+all_ancestral_Miyata = cbind(Bamancestral$Miyata, Nupancestral$Miyata, CGancestral$Miyata)
+rng_ancestral = range(all_ancestral_Miyata, na.rm = TRUE)
+
+
+
+ggplot(data = Bamancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores | scaled by alignment length | pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "darkorchid1", high = "darkorchid4", limits = c(floor(rng_ancestral[1]), ceiling(rng_ancestral[2])))
+
+ggplot(data = Nupancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Nup37: Total Miyata scores | scaled by alignment length | pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "darkorchid1", high = "darkorchid4", limits = c(floor(rng_ancestral[1]), ceiling(rng_ancestral[2])))
+
+
+ggplot(data = CGancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("CG13607: Total Miyata scores | scaled by alignment length | pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "darkorchid1", high = "darkorchid4", limits = c(floor(rng_ancestral[1]), ceiling(rng_ancestral[2])))
+
+```
+
+#A distibution of Miyata scores
+```{r, fig.height=5, fig.width=5}
+
+Miyata_matrix_v = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34,
+          0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 
+          0.91, 0.51, 0.9, 1.92, 2.46, 1.78, 2.37, 2.17, 2.96, 2.92, 1.85, 2.76, 2.69, 2.42, 3.23, 3.18, 4.23, 
+          0.85, 1.7, 2.48, 2.78, 1.96, 2.37, 2.78, 3.54, 3.58, 2.76, 3.67, 3.6, 3.34, 4.14, 4.08, 5.13, 
+          0.89, 1.65, 2.06, 1.31, 1.87, 1.94, 2.71, 2.74, 2.15, 3.04, 2.95, 2.67, 3.45, 3.33, 4.38, 
+          1.12, 1.83, 1.4, 2.05, 1.32, 2.1, 2.03, 1.42, 2.25, 2.14, 1.86, 2.6, 2.45, 3.5,
+          0.84, 0.99, 1.47, 0.32, 1.06, 1.13, 2.13, 2.7, 2.57, 2.3, 2.81, 2.48, 3.42,
+          0.85, 0.9, 0.96, 1.14, 1.45, 2.97, 3.53, 3.39, 3.13, 3.59, 3.22, 4.08,
+          0.65, 1.29, 1.84, 2.04, 2.76, 3.49, 3.37, 3.08, 3.7, 3.42, 4.39, 
+          1.72, 2.05, 2.34, 3.4, 4.1, 3.98, 3.69, 4.27, 3.95, 4.88,
+          0.79, 0.82, 2.11, 2.59, 2.45, 2.19, 2.63, 2.27, 3.16,
+          0.4, 2.7, 2.98, 2.84, 2.63, 2.85, 2.42, 3.11,
+          2.43, 2.62, 2.49, 2.29, 2.47, 2.02, 2.72, 
+          0.91, 0.85, 0.62, 1.43, 1.52, 2.51,
+          0.14, 0.41, 0.63, 0.94, 1.73, 
+          0.29, 0.61, 0.86, 1.72,
+          0.82, 0.93, 1.89,
+          0.48, 1.11,
+          1.06)
+
+ggplot() +
+  aes(Miyata_matrix_v) +
+  geom_histogram(binwidth = 0.25) +
+  labs(title = "Distribution of all possible Miyata scores", x = "Miyata score") +
+  scale_x_continuous(breaks = seq(0, 5.25, by = 1))
+
+summary(Miyata_matrix_v)
+
+```
+
+#Distribution of Miyata scores from each amino acid to the others
+```{r, fig.height = 10, fig.width = 15}
+
+cys = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34)
+pro = c(0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 1.33)
+ala = c(0.91, 0.51, 0.9, 1.92, 2.46, 1.78, 2.37, 2.17, 2.96, 2.92, 1.85, 2.76, 2.69, 2.42, 3.23, 3.18, 4.23, 0.06, 1.39)
+gly = c(0.85, 1.7, 2.48, 2.78, 1.96, 2.37, 2.78, 3.54, 3.58, 2.76, 3.67, 3.6, 3.34, 4.14, 4.08, 5.13, 0.91, 0.97, 2.22)
+ser = c(0.89, 1.65, 2.06, 1.31, 1.87, 1.94, 2.71, 2.74, 2.15, 3.04, 2.95, 2.67, 3.45, 3.33, 4.38, 0.85, 0.51, 0.56, 2.84)
+thr = c(1.12, 1.83, 1.4, 2.05, 1.32, 2.1, 2.03, 1.42, 2.25, 2.14, 1.86, 2.6, 2.45, 3.5, 0.89, 1.7, 0.9, 0.87, 1.45)
+gln = c(0.84, 0.99, 1.47, 0.32, 1.06, 1.13, 2.13, 2.7, 2.57, 2.3, 2.81, 2.48, 3.42, 1.65, 1.12, 2.48, 1.92, 1.92, 2.48)
+glu = c(0.85, 0.9, 0.96, 1.14, 1.45, 2.97, 3.53, 3.39, 3.13, 3.59, 3.22, 4.08, 0.84, 1.83, 2.06, 2.78, 2.46, 2.48, 3.26)
+asn = c(0.65, 1.29, 1.84, 2.04, 2.76, 3.49, 3.37, 3.08, 3.7, 3.42, 4.39, 0.85, 0.99, 1.4, 1.31, 1.96, 1.78, 1.8, 2.83)
+asp = c(1.72, 2.05, 2.34, 3.4, 4.1, 3.98, 3.69, 4.27, 3.95, 4.88, 0.65, 0.9, 1.47, 2.05, 1.87, 2.37, 2.37, 2.4, 3.48)
+his = c(0.79, 0.82, 2.11, 2.59, 2.45, 2.19, 2.63, 2.27, 3.16, 1.72, 1.29, 0.96, 0.32, 1.32, 1.94, 2.78, 2.17, 2.15, 2.56)
+lys = c(0.4, 2.7, 2.98, 2.84, 2.63, 2.85, 2.42, 3.11, 0.79, 2.05, 1.84, 1.14, 1.06, 2.1, 2.71, 3.54, 2.96, 2.94, 3.27)
+arg = c(2.43, 2.62, 2.49, 2.29, 2.47, 2.02, 2.72, 0.4, 0.82, 2.34, 2.04, 1.45, 1.13, 2.03, 2.74, 3.58, 2.92, 2.9, 3.06)
+val = c(0.91, 0.85, 0.62, 1.43, 1.52, 2.51, 2.43, 2.7, 2.11, 3.4, 2.76, 2.97, 2.13, 1.42, 2.15, 2.76, 1.85, 1.79, 0.86)
+leu = c(0.14, 0.41, 0.63, 0.94, 1.73, 0.91, 2.62, 2.98, 2.59, 4.1, 3.49, 3.53, 2.7, 2.25, 3.04, 3.67, 2.276, 2.7, 1.65)
+ile = c(0.29, 0.61, 0.86, 1.72, 0.14, 0.85, 2.49, 2.84, 2.45, 3.98, 3.37, 3.39, 2.57, 2.14, 2.95, 3.6, 2.69, 2.62, 1.63)
+met = c(0.82, 0.93, 1.89, 0.29, 0.41, 0.92, 2.29, 2.63, 2.19, 3.69, 3.08, 3.13, 2.3, 1.86, 2.67, 3.34, 2.42, 2.36, 1.46)
+phe = c(0.48, 1.11, 0.82, 0.61, 0.63, 1.43, 2.47, 2.85, 2.63, 4.27, 3.7, 3.59, 2.81, 2.6, 3.45, 4.14, 3.23, 3.17, 2.24)
+tyr = c(1.06, 0.48, 0.93, 0.86, 0.94, 1.52, 2.02, 2.42, 2.27, 3.95, 3.42, 3.22, 2.48, 2.45, 3.33, 4.08, 3.18, 3.12, 2.38)
+trp = c(1.06, 1.11, 1.89, 1.72, 1.73, 2.51, 2.72, 3.11, 3.16, 4.88, 4.39, 4.08, 3.42, 3.5, 4.38, 5.13, 4.23, 4.17, 3.34)
+
+Miyata_df = data.frame(cys, pro, ala, gly, ser, thr, gln, glu, asn, asp, his, lys, arg, val, leu, ile, met, phe, tyr, trp)
+
+aa_names = c("cys", "pro", "ala", "gly", "ser", "thr", "gln", "glu", "asn", "asp", "his", "lys", "arg", "val", "leu", "ile", "met", "phe", "tyr", "trp")
+
+library(grid)
+
+plots = list()
+stats_names = c("Min", "1st Q", "Median", "Mean", "3rd Q", "Max")
+
+
+mins = c()
+firstqs = c()
+medians = c()
+means = c()
+thirdqs = c()
+maxs = c()
+
+
+for (i in names(Miyata_df)) {
+  stats = as.character(summary(Miyata_df[,i]))
+  text1 = paste(stats_names[1], stats[1], "|", stats_names[2], stats[2], "|", stats_names[3], stats[3])
+  text2 = paste(stats_names[4], stats[4], "|", stats_names[5], stats[5], "|", stats_names[6], stats[6])
+  
+#  grob = grobTree(textGrob(text1, x = 0.1, y = 0.95, hjust = 0, gp=gpar(col = "red", fontsize = 10, fontface = "italic")))
+#  grob2 = grobTree(textGrob(text2, x = 0.1, y = 0.85, hjust = 0, gp=gpar(col = "red", fontsize = 10, fontface = "italic")))
+  
+    plots[[i]] = ggplot(data = Miyata_df) + 
+    geom_histogram(aes_string(x=i), binwidth = 0.25) +
+      scale_x_continuous(limits = c(0, 5)) +
+      scale_y_continuous(limits = c(0,5)) +
+    labs(title = i, x = "Miyata score")
+#      annotation_custom(grob) +
+#      annotation_custom(grob2)
+    
+    mintemp = stats[1]
+    firstqtemp = stats[2]
+    mediantemp = stats[3]
+    meantemp = stats[4] 
+    thirdqtemp = stats[5]
+    maxtemp = stats[6]
+  
+  mins = c(mins, mintemp)
+  firstqs = c(firstqtemp, firstqs)
+  medians = c(medians, mediantemp)
+  means = c(means,meantemp)
+  thirdqs = c(thirdqs, thirdqtemp)
+  maxs = c(maxs, maxtemp)
+    
+    
+    
+}
+
+stats_df = data.frame(aa_names, mins, firstqs, medians, means, thirdqs, maxs)
+
+library(gridExtra)
+allplots = marrangeGrob(plots[1:20], nrow = 4, ncol = 5)
+
+
+halfplots2 = marrangeGrob(plots[10:20], nrow = 5, ncol = 2)
+
+allplots
+print(stats_df)
+
+```
+
+
+#D. tei
+##to the previously generated predicted ancestors (they were generated without D. tei in the alignment)
+```{r}
+
+setwd("~/Miyata_scores/bam")
+
+#### tei and Node 10 ####
+SequencesA = get_sequences("Dtei_aligned-Node10.fasta")
+SequencesB = get_sequences("Node10.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamteiNode10_Miyata = Total_Miyata
+print(BamteiNode10_Miyata)
+
+#### tei and Node 9 ####
+SequencesA = get_sequences("Dtei_aligned-Node9.fasta")
+SequencesB = get_sequences("Node9.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamteiNode9_Miyata = Total_Miyata
+print(BamteiNode9_Miyata)
+
+```
+
+
+## Using D. tei with new predicted ancestral sequences!
+####Used PRANK to align mel, sim, sec, yak, tei, ere, eug, and pse. Reconstructed with PAML. Nodes are the predicted ancestral sequences; see powerpoint or Benchling for where they are on the tree. I AM RENAMING THE NODES FROM PAML TO BE COMPATIBLE WITH THE NODES FROM THE PREVIOUS RUN THAT DID NOT INCLUDE D. TEI. 
+
+####NODE NAME FROM PAML | NODE NAME HERE --> 9|8, 10|9, 11|10, 12|11, 13|12, 14|13, 15|14
+
+##melanogaster
+###mel and Node 11
+```{r}
+
+setwd("~/Miyata_scores/bam/Alignment_and_Ancestral/melgroupteipse")
+
+##melanogaster
+###mel and Node 11|10
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BammelNode11_Miyata = Total_Miyata
+print(BammelNode11_Miyata)
+
+###mel and Node 10|9
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BammelNode10_Miyata = Total_Miyata
+print(BammelNode10_Miyata)
+
+###mel and Node 12|11
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Node12_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BammelNode12_Miyata = Total_Miyata
+print(BammelNode12_Miyata)
+
+##simulans
+###sim and Node 12|11
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node12_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode12_Miyata = Total_Miyata
+print(BamsimNode12_Miyata)
+
+###sim and Node 11|10
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode11_Miyata = Total_Miyata
+print(BamsimNode11_Miyata)
+
+###sim and Node 10|9
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode10_Miyata = Total_Miyata
+print(BamsimNode10_Miyata)
+
+###sim and Node 13|12
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Node13_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsimNode13_Miyata = Total_Miyata
+print(BamsimNode13_Miyata)
+
+##sechellia
+###sec and Node 12|11
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node12_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode12_Miyata = Total_Miyata
+print(BamsecNode12_Miyata)
+
+###sec and Node 11|10
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode11_Miyata = Total_Miyata
+print(BamsecNode11_Miyata)
+
+###sec and Node 10|9
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode10_Miyata = Total_Miyata
+print(BamsecNode10_Miyata)
+
+###sec and Node 13|12
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Node13_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamsecNode13_Miyata = Total_Miyata
+print(BamsecNode13_Miyata)
+
+##yakuba
+###yak and Node 14|13
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Node14_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamyakNode14_Miyata = Total_Miyata
+print(BamyakNode14_Miyata)
+
+###yak and Node 10|9
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamyakNode10_Miyata = Total_Miyata
+print(BamyakNode10_Miyata)
+
+###yak and Node 15|14
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Node15_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamyakNode15_Miyata = Total_Miyata
+print(BamyakNode15_Miyata)
+
+###yak and Node 11|10
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamyakNode11_Miyata = Total_Miyata
+print(BamyakNode11_Miyata)
+
+##ere
+###ere and Node 14|13
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Node14_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamereNode14_Miyata = Total_Miyata
+print(BamereNode14_Miyata)
+
+###ere and Node 10|9
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamereNode10_Miyata = Total_Miyata
+print(BamereNode10_Miyata)
+
+###ere and Node 15|14
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Node15_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamereNode15_Miyata = Total_Miyata
+print(BamereNode15_Miyata)
+
+###ere and Node 11|10
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamereNode11_Miyata = Total_Miyata
+print(BamereNode11_Miyata)
+
+###eug and Node 10|9
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BameugNode10_Miyata = Total_Miyata
+print(BameugNode10_Miyata)
+
+##teisierri
+###tei and Node 14|13
+
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Node14_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamteiNode14_Miyata = Total_Miyata
+print(BamteiNode14_Miyata)
+
+###tei and Node 10|9
+
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Node10_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamteiNode10_Miyata = Total_Miyata
+print(BamteiNode10_Miyata)
+
+###tei and Node 15|14
+
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Node15_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamteiNode15_Miyata = Total_Miyata
+print(BamteiNode15_Miyata)
+
+###tei and Node 11|10
+
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Node11_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+BamteiNode11_Miyata = Total_Miyata
+print(BamteiNode11_Miyata)
+
+```
+
+
+```{r}
+
+library(ggplot2)
+
+Bamancestral = expand.grid(Predicted_Ancestral_Sequence = c("Node #9", "Node #10", "Node #11", "Node #12", "Node #13", "Node #14"), 
+                            Extant_Species = c("sec", "sim", "mel", "ere", "yak", "tei", "eug", "pse"))
+
+Bamancestral$Miyata = c(BamsecNode10_Miyata, BamsecNode11_Miyata, BamsecNode12_Miyata, BamsecNode13_Miyata, NA, NA, BamsimNode10_Miyata, BamsimNode11_Miyata, BamsimNode12_Miyata, BamsimNode13_Miyata, NA, NA, BammelNode10_Miyata, BammelNode11_Miyata, BammelNode12_Miyata, NA, NA, NA, BamereNode10_Miyata, BamereNode11_Miyata, NA, NA, BamereNode14_Miyata, NA, BamyakNode10_Miyata, BamyakNode11_Miyata, NA, NA, BamyakNode14_Miyata, BamyakNode15_Miyata, BamteiNode10_Miyata, BamteiNode11_Miyata, NA, NA, BamteiNode14_Miyata, BamteiNode15_Miyata, BameugNode10_Miyata, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+
+BamAncrng = range(Bamancestral$Miyata, rm.na = TRUE)
+
+ggplot(data = Bamancestral, aes(x = Predicted_Ancestral_Sequence, y = Extant_Species)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores, pairwise between ancestral and extant") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(BamAncrng[1]), ceiling(BamAncrng[2])))
+
+```
+
+#D. tei to other extant species
+```{r}
+setwd("~/Miyata_scores/bam/Alignment_and_Ancestral/melgroupteipse")
+
+###melanogaster and simulans
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dsim_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelsim_Miyata = Total_Miyata
+
+######melanogaster and yakuba
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dyak_aligned.fasta")
+
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelyak_Miyata = Total_Miyata
+
+######melanogaster and eugracilis
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammeleug_Miyata = Total_Miyata
+
+######melanogaster and sechelia
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelsec_Miyata = Total_Miyata
+
+######melanogaster and erecta
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelere_Miyata = Total_Miyata
+
+######melanogaster and pseudoobscura
+
+SequencesA = get_sequences("Dmel_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bammelpse_Miyata = Total_Miyata
+
+######simulans and yakuba
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dyak_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimyak_Miyata = Total_Miyata
+
+######simulans and eugracilis
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimeug_Miyata = Total_Miyata
+
+######simulans and sechelia
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimsec_Miyata = Total_Miyata
+
+######simulans and erecta
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimere_Miyata = Total_Miyata
+
+######simulans and pseudoobscura
+
+SequencesA = get_sequences("Dsim_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsimpse_Miyata = Total_Miyata
+
+######yakuba and eugracilis
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyakeug_Miyata = Total_Miyata
+
+######yakuba and sechelia
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyaksec_Miyata = Total_Miyata
+
+######yakuba and erecta
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyakere_Miyata = Total_Miyata
+
+######yakuba and psuedoobscura
+
+SequencesA = get_sequences("Dyak_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamyakpse_Miyata = Total_Miyata
+
+######eugracilis and sechelia
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bameugsec_Miyata = Total_Miyata
+
+######eugracilis and erecta
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bameugere_Miyata = Total_Miyata
+
+######eugracilis and pseudoobscura
+
+SequencesA = get_sequences("Deug_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bameugpse_Miyata = Total_Miyata
+
+######sechelia and erecta
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsecere_Miyata = Total_Miyata
+
+######sechelia and pseudoobscura
+
+SequencesA = get_sequences("Dsec_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamsecpse_Miyata = Total_Miyata
+
+###erecta and pseudoobscura
+
+SequencesA = get_sequences("Dere_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamerepse_Miyata = Total_Miyata
+
+###teissieri and mel###
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Dmel_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamteimel_Miyata = Total_Miyata
+
+###teissieri and sim###
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Dsim_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamteisim_Miyata = Total_Miyata
+
+###teissieri and sec###
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Dsec_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamteisec_Miyata = Total_Miyata
+
+###teissieri and yak###
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Dyak_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamteiyak_Miyata = Total_Miyata
+
+###teissieri and ere###
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Dere_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamteiere_Miyata = Total_Miyata
+
+###teissieri and eug###
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Deug_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamteieug_Miyata = Total_Miyata
+
+###teissieri and pse###
+SequencesA = get_sequences("Dtei_aligned.fasta")
+SequencesB = get_sequences("Dpse_aligned.fasta")
+
+NucleotidesA = get_nucleotides(SequencesA)
+NucleotidesB = get_nucleotides(SequencesB)
+
+CodonsA = get_codons(SequencesA)
+CodonsB = get_codons(SequencesB)
+
+AAsA = get_AAs(CodonsA)
+AAsB = get_AAs(CodonsB)
+
+Total_Miyata = get_Miyata(AAsA, AAsB)
+Bamteipse_Miyata = Total_Miyata
+
+```
+
+
+```{r}
+
+library(ggplot2)
+
+Bamextantspecies = expand.grid(speciesA = c("sec", "sim", "mel", "ere", "yak", "tei", "eug", "pse"), 
+                            speciesB = c("sec", "sim", "mel", "ere", "yak", "tei", "eug", "pse"))
+
+Bamextantspecies$Miyata = c(NA, NA, NA, NA, NA, NA, NA, NA, Bamsimsec_Miyata, NA, NA, NA, NA, NA, NA, NA, Bammelsec_Miyata, Bammelsim_Miyata, NA, NA, NA, NA, NA, NA, Bamsecere_Miyata, Bamsimere_Miyata, Bammelere_Miyata, NA, NA, NA, NA, NA, Bamyaksec_Miyata, Bamsimyak_Miyata, Bammelyak_Miyata, Bamyakere_Miyata, NA, NA, NA, NA, Bamteisec_Miyata, Bamteisim_Miyata, Bamteimel_Miyata, Bamteiere_Miyata, Bamteiyak_Miyata, NA, NA, NA, Bameugsec_Miyata, Bamsimeug_Miyata, Bammeleug_Miyata, Bameugere_Miyata, Bamyakeug_Miyata, Bamteieug_Miyata, NA, NA, Bamsecpse_Miyata, Bamsimpse_Miyata, Bammelpse_Miyata, Bamerepse_Miyata, Bamyakpse_Miyata, Bamteipse_Miyata, Bameugpse_Miyata, NA)
+
+Bamrng = range(Bamextantspecies$Miyata, rm.na = TRUE)
+
+ggplot(data = Bamextantspecies, aes(x = speciesA, y = speciesB)) +
+  geom_tile(aes(fill = Miyata)) +
+  ggtitle("Bam: total Miyata scores, pairwise across extant species") +
+  geom_text(aes(label = Miyata)) +
+  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4", limits = c(floor(Bamrng[1]), ceiling(Bamrng[2])))
+
+
+```
