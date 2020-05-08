@@ -10,7 +10,7 @@ output: github_document
 ## Input files
 
 ### ***CHANGE THESE IF YOU WISH***
-#### Input a multifasta file of the aligned sequences for a gene.
+#### Input two files coding sequences for a gene.
 ```{r input}
 
 input_ref_fasta = "~/github/Sequence_Analysis/input_data/Dmel_CDS.fasta" # ***CHANGE*** to the fasta file of your reference sequence 
@@ -35,28 +35,6 @@ plotheight = 5 # ***CHANGE*** to set the height of the polymorphism output plot 
 
 Plot2_start = 0 # ***CHANGE*** to the amino acid site that you want to start at for your zoomed in plot
 Plot2_end = 30 # ***CHANGE*** to the amino acid site that you want to end at for your zoomed in plot
-```
-
-```{r regions}
-
-######### SET UP REGIONS TO ANNOTATE ON THE PLOT #########
-
-REGIONS = FALSE # ***CHANGE*** TRUE = you want to annotate the final output plot with functional regions of your gene. Adjust the values in rect_df below if you want to highlight regions other than the default for bam. If set to FALSE, then won't highlight any regions on the final output plot.
-
-SNP = FALSE # ***CHANGE*** TRUE = you want to annotate the final output plot with a vertical line at a specific (single) amino acid. Adjust the values in the hypomorph dataframe below if you want to highlight a SNP other than the default set for bam. If set to FALSE, then won't highlight any SNP on the final output plot.
-
-SHIFT = FALSE # ***CHANGE*** TRUE = the regions listed above will shift according to gaps in input sequence A. FALSE = the regions will not shift. 
-
-rect_df = data.frame(xmin = c(13, 151, 201, 402), # ***CHANGE*** if want to highlight different regions for your gene
-                     xmax = c(33, 350, 250, 434), # ***CHANGE*** to correspond to ends of the regions that you put in the above "xmin" section (e.g. the first region is from amino acid position 13 to 33)
-                     ymin = c(-Inf, -Inf, -Inf, -Inf),
-                     ymax = c(Inf, Inf, Inf, Inf),
-                     Region = factor(c("CBM", "Bgcn/Csn4 binding", "Ubiquitin interaction", "PEST domain"))) # ***CHANGE*** to reflect the names of your regions
-
-rect_colors = c("#CC79A7", "steelblue1", "#009E73", "#F0E442") # ***CHANGE*** if you want to use different colors in highlighting your regions
-
-hypomorph = data.frame(loc = 255, hypomorph = "L255F") # ***CHANGE*** if you want to highlight any position with a vertical line, e.g. like it currently points to the hypomorph position; I can't get this to show up in the legend however.
-
 ```
 
 ## Functions
@@ -288,23 +266,25 @@ AminoAcids_ref_noStop = remove_stop(AminoAcids_ref)
 
 ```
 
+### Do the analysis to get data on the Miyata scores for each amino acid site across the set of input sequences
 ```{r Miyata_freq, results="hide"}
 
 library(data.table)
 
-num_uniq_AAs_vector = c()
-Miyata_df = matrix(nrow = nrow(AminoAcids_noStop), ncol = ncol(AminoAcids_noStop))
+num_uniq_AAs_vector = c() 
+Miyata_df = matrix(nrow = nrow(AminoAcids_noStop), ncol = ncol(AminoAcids_noStop)) #make an empty dataframe in which the columns represent the amino acid sites of your sequence and the rows represent the set of sequences from input_fasta. It will be filled with the Miyata scores for each site and sequence.
 Miyata_plot_df = data.frame()
 
 all_Miyata_vector = c()
+site_mut_vector = c()
 
-for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in the sequence alignment
+for (i in 1:ncol(AminoAcids_noStop)) { #for every amino acid position in the sequence alignment
 
       cat("Amino acid position:", i,"\n") #print the amino acid position
       cat("Amino acids present:",(unique(AminoAcids_noStop[,i])), "\n") #and print what the amino acids are
       num_uniq_AAs = length(unique(AminoAcids_noStop[,i])) #count the number of unique amino acids at this site
 
-      num_uniq_AAs_vector = c(num_uniq_AAs_vector, num_uniq_AAs)
+      num_uniq_AAs_vector = c(num_uniq_AAs_vector, num_uniq_AAs) #create a vector to store information on the number of unique amino acids at each site
 
       a = unlist(AminoAcids_noStop[, (i)]) #a series of commands to set up a table to determine all the amino acids at this site and their frequencies
 
@@ -313,32 +293,33 @@ for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in 
       setkey(AA_freq_table, a)
       collapse = AA_freq_table[,.N,by=list(a)]
 
-      sorted = collapse[order(N)]
+      sorted = collapse[order(N)] #sort the table by the frequency of each amino acid
 
       Miyata_vector = c()
       Miyata_site_vector = c()
       Miyata_freq_vector = c()
       
-      for (b in 1:nrow(sorted)) {
-        tempAA = sorted[b,1]
-        pairedAAs = paste(AminoAcids_ref_noStop[i], tempAA)
-        Miyata = hash[[pairedAAs]]
+      for (b in 1:nrow(sorted)) { #for each sequence in the set from input_fasta
+        tempAA = sorted[b,1] #get the amino acid at this site in this sequence
+        pairedAAs = paste(AminoAcids_ref_noStop[i], tempAA) #get the aforementioned amino acid and the amino acid in the reference sequence that is at this position
+        Miyata = hash[[pairedAAs]] #get the Miyata score for this pair of amino acids
 
-        Freq = as.numeric(sorted[b,2])
-        Miyata_freq_vector = c(Miyata_freq_vector, Freq)
-        Miyata_freq = c(rep(Miyata, each=Freq))
+        Freq = as.numeric(sorted[b,2]) #get the frequency of this amino acid at this site across all the sequences in the input_fasta set of sequences
+        Miyata_freq_vector = c(Miyata_freq_vector, Freq) #store this frequency in a vector
+        Miyata_freq = c(rep(Miyata, each=Freq)) #replicate the calculated Miyata score so this vector contains the score for every instance of the amino acid in the sequence set. E.g. If input_fasta has five Cs at site 7 and the reference is a P at site 7, put five scores of 1.33 in this vector. 
 
-        Miyata_vector = c(Miyata_vector, Miyata)
-        Miyata_site_vector = c(Miyata_site_vector, Miyata_freq)
+        Miyata_vector = c(Miyata_vector, Miyata) #store the (single) Miyata score in this vector
+        Miyata_site_vector = c(Miyata_site_vector, Miyata_freq) #have a vector that contains all the Miyata scores for each sequence in the set of input_fasta, such that you have a vector that is the length of the number of sequences in input_fasta at the very end of running this code.
       }
       
-      cat("Set of Miyata scores:", Miyata_vector, "\n")
-      cat("Corresponding freq of scores:", Miyata_freq_vector, "\n")
+      cat("Set of Miyata scores:", Miyata_vector, "\n") #print the unique Miyata scores at this site
+      cat("Corresponding freq of scores:", Miyata_freq_vector, "\n") #print the number of times these scores occur at this site
       
-      Miyata_df[,i] = Miyata_site_vector
+      Miyata_df[,i] = Miyata_site_vector #populate the dataframe with all the Miyata_scores for this amino acid site
       
-      #Formatting data to be graphable
-      Miyata_plot_df_temp = data.frame(site = c(rep(i, each = 7)), Miyata_range = c("0", "0-1", "1-2", "2-3", "3-4", "4-5", "5-6"))
+      ############## Formatting data to be graphable ##############
+      
+      Miyata_plot_df_temp = data.frame(site = c(rep(i, each = 7)), Miyata_range = c("0", "0-1", "1-2", "2-3", "3-4", "4-5", "5-6")) #set up a mini dataframe to hold our counts of Miyata scores for the amino acid site such that they are binned into seven groups: 0, 0-1, 1-2, 2-3, 3-4, 4-5, and 5-6 
       zero = 0
       zeroone = 0
       onetwo = 0
@@ -347,7 +328,7 @@ for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in 
       fourfive = 0
       fivesix = 0
       
-      for (c in (1:length(Miyata_site_vector))) {
+      for (c in (1:length(Miyata_site_vector))) { #for every value in the set of Miyata scores at the amimo acid site, perform a series of if statements to sort the values into the appropriate bins
         Miyata1 = Miyata_site_vector[c]
         if (Miyata1 == 0 ) {
           zero = zero + 1
@@ -367,59 +348,56 @@ for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in 
       }
       
       bins = c(zero, zeroone, onetwo, twothree, threefour, fourfive, fivesix)
-      Miyata_plot_df_temp[,3] = bins
+      Miyata_plot_df_temp[,3] = bins 
       
-      Miyata_plot_df = rbind(Miyata_plot_df, Miyata_plot_df_temp)
+      Miyata_plot_df = rbind(Miyata_plot_df, Miyata_plot_df_temp) #create a large, elongated dataframe that has all the binned counts for each site. This is the format the ggplot2 histogram function accepts
       
-      all_Miyata_vector = c(all_Miyata_vector, Miyata_site_vector)
+      all_Miyata_vector = c(all_Miyata_vector, Miyata_site_vector) #store all the Miyata scores, repeated to account for their friquency, and across all sites in this vector
       
-### FIND THE NUMBER OF SYNONYMOUS POLYMORPHISMS IN AMINO ACIDS WITH THE ORIGANAL AMINO ACID ###      
-### this indicates that the site mutated away and then came back. but is an underestimate because it is not accounting for sites that mutated away and then mutated back to the exact same codon
+### If an amino acid in the set of sequences from input_fasta is the same as the amino acid in the reference sequence at that site, find out if it has any synonymous polymorphisms. ###    
       
       site_mut = c()
       matching_AAs = 0
       diff_AAs = 0
       
-      for (j in 1:nrow(AminoAcids_noStop)) {
+      for (j in 1:nrow(AminoAcids_noStop)) { #for every sequence in the input_fasta file, at this site...
 
-        if (AminoAcids_noStop[j,i] == AminoAcids_ref_noStop[i]) {
+        if (AminoAcids_noStop[j,i] == AminoAcids_ref_noStop[i]) { #...if the amino acid is the same as the reference sequence amino acid...
           
-          matching_AAs = matching_AAs + 1
+          matching_AAs = matching_AAs + 1 #add to a count to keep track of the total number of identical amino acids
           
-          if (Codons[j,i] == Codons_ref[i]) {
+          if (Codons[j,i] == Codons_ref[i]) { #if the codon for the amino acid is the same as the codon in the reference sequence
 #            cat("same codons:", as.character(Codons[j,i]), "and", as.character(Codons_ref[i]))
             
-            site_mut = c(site_mut, 0)
+            site_mut = c(site_mut, 0) #then give this site a score of 0, to indicate there are no synonymous polymorphisms here
             
-          } else {
-            site_mut = c(site_mut, 1)
+          } else { #otherwise, if the codon is different
+            site_mut = c(site_mut, 1) #give this site a score of 1, to indicate there is a synonymous polymorphism here
 #            cat("different codons:", as.character(Codons[j,i]), "and", as.character(Codons_ref[i]))
 
           }
           
-        } else {
-          diff_AAs = diff_AAs + 1
+        } else { #but if the amino acids don't match, then...
+          diff_AAs = diff_AAs + 1 #add to a count to keep track of the nonsynonymous amino acid sites
 
         }
 
-      }
+      } #end for loop
         
-      if (matching_AAs != 0) {
+      if (matching_AAs != 0) { #if there is at least one sequence that has an identical amino acid to the reference sequence at this site, then...
         
-        diff_codons = sum(site_mut)
-        matching_codons = matching_AAs-diff_codons
-        percent_diff = diff_codons/matching_AAs
+        diff_codons = sum(site_mut) #get the number of sequences that have synonymous polymorphisms at this amino acid site
+        matching_codons = matching_AAs-diff_codons #calculate the number of sequences that don't have sysnonymous polymorphisms at this site
+        percent_diff = diff_codons/matching_AAs #calculate the percent of sequences that have a synonymous polymorphism at this site
         
-        site_mut_vector = c(site_mut_vector, percent_diff)    
+        site_mut_vector = c(site_mut_vector, percent_diff) #store this percent in a vector, so we get a vector containing the number synonymous polymorphism frequency for every amino acid site in the gene    
         
-      } else {
-        site_mut_vector = c(site_mut_vector, NA)
+      } else { #but if no sequence in the set of input_fasta has an identical amino acid to the one in the reference sequence, then... 
+        site_mut_vector = c(site_mut_vector, NA) #give this amino acid site a score of NA
       }
 #      print(site_mut_vector)      
       
-      
-      
-}
+} #end for loop that cycled through every amino acid position in the sequence
   
 ```
 
@@ -429,6 +407,8 @@ for (i in 1:ncol(AminoAcids_noStop)) { #go through every amino acid position in 
 all_Miyata_vector_NoZero = all_Miyata_vector[!all_Miyata_vector %in% 0.00] #Get the non-zero Miyata scores
 
 ############# MAKE THE HISTOGRAMS #############
+
+#A histogram of the number of unique amino acids at a site.
 
 library(ggplot2)
 library(dplyr)
@@ -442,7 +422,6 @@ ggplot() +
 
 
 #A histogram of Miyata scores for every site in the alignment, i.e. includes lots of 0s for the conserved sites
-#Not that useful, so it is commented out currently
 
 ggplot() +
   aes(all_Miyata_vector) +
@@ -450,7 +429,7 @@ ggplot() +
   labs(title = "Distribution of all Miyata scores", subtitle = subtitle_label, x = "Miyata score") +
   scale_x_continuous(breaks = seq(0, 5.25, by = 1))
 
-#A histogram of the set of Miyata scores of the divergences.
+#A histogram of the set of non-zero Miyata scores
 
 ggplot() +
   aes(all_Miyata_vector_NoZero) +
@@ -460,16 +439,18 @@ ggplot() +
 
 ```
 
-
+### Plot a figure of stacked bars to indicate the binning of Miyata scores for every amino acid site in the gene; 
 ```{r plot, fig.height=plotheight, fig.width=plotwidth}
 library(ggplot2)
 
 ggplot(Miyata_plot_df, aes(fill=Miyata_range, y = V3, x=site)) + 
     geom_bar(position="stack", stat="identity")+
-  labs(title = "Range of Miyata scores to reference sequence", subtitle = subtitle_label, x = "Amino Acid site", y = "Number of simulations")
+  labs(title = "Range of Miyata scores to reference sequence", subtitle = subtitle_label, x = "Amino Acid site", y = "Number of sequences")
 
 ```
 
+### Zoom in on a portion of the above plot so you can see the data better. 
+#### This portion was determined in one of the early input chunks.
 ```{r plot2, fig.height=plotheight, fig.width=plotwidth}
 
 Miyata_plot2_df = data.frame()
@@ -489,8 +470,14 @@ library(ggplot2)
 
 ggplot(Miyata_plot2_df, aes(fill=Miyata_range, y = V3, x=site)) + 
     geom_bar(position="stack", stat="identity")+
-  labs(title = "Range of Miyata scores to reference sequence", subtitle = subtitle_label, x = "Amino Acid site", y = "Number of simulations")
+  labs(title = "Range of Miyata scores to reference sequence", subtitle = subtitle_label, x = "Amino Acid site", y = "Number of sequences")
 
+```
+
+### Get a summary of the synonymous polymorphisms
+```{r synonymous}
+
+summary(site_mut_vector)
 
 
 ```
