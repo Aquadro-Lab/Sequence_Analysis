@@ -13,3 +13,6 @@ This is an R Markdown file that takes in two individual fasta files consisting o
 
 ### Miyata_range.Rmd 
 This is an R Markdown file that takes in two individual fasta files consisting of (1) a reference gene (coding) sequence and (2) a set of aligned gene sequences of the same gene. It outputs information on the Miyata scores for each site, e.g. what is the range and frequency of Miyata scores at each site. The code is set to analyze the output of a forward evolution simulation on the D. melanogaster bag-of-marbles gene compared to the D. mel bag-of-marbles reference genomes. To analyze your data, I've indicated which variables to change at the beginning of the file. 
+
+### Miyata_scores.Rmd
+This is an R Markdown file that takes in many individual fasta files consisting of aligned gene (coding) sequences. It outputs heatmap graphics that show the total Miyata scores (i.e. summation of Miyata scores) pairwise between input sequences. The code is set to analyze the bag-of-marbles gene between various different Drosophila species and predicted ancestral sequences. The predicted ancestral sequences were generated using PAML after aligning with PRANK. To analyze your data, I've indicated which variables to change at the beginning of the file. At the end of this file is code for two graphics that help illustrate some general information on Miyata scores.  
