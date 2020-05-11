@@ -50,7 +50,8 @@ seqB_names = c("Node10", "Node11", "Node12", "Node13", "Node14", "Node15") # ***
 
 seqB_label = "ancestral nodes" # ***CHANGE*** to reflect what you want your plot axis label to say for this input category
 
-# You will now indicate whether you want the entire heatmap displayed and if not, which sequence pairs to grey out.
+### You will now indicate whether you want the entire heatmap displayed and if not, which sequence pairs to grey out. ###
+
 PLOT_ALL = FALSE # ***CHANGE*** Set to TRUE if you want a heatmap with every sequence pair's value displayed; set to FALSE if you want to omit the values of some pairs. If set to FALSE, indicate which pairs you want to omit in the vector below; make sure the names are exactly as written in the seqA_names and seqB_names vectors and to leave a single space between the names. 
 
 plot_omit = c("D.pse Node10", "D.pse Node11", "D.pse Node12", "D.pse Node13", "D.pse Node14", "D.pse Node15",
@@ -67,15 +68,15 @@ plot_omit = c("D.pse Node10", "D.pse Node11", "D.pse Node12", "D.pse Node13", "D
 #### Labels and plot size input information
 ```{r labels}
 
-subtitle_label = "bam" # ***CHANGE*** to the name of your gene or any other descriptor that you want in the output heatmap
+subtitle_label = "bam | ancestral sequences from PRANK alignment and PAML analysis" # ***CHANGE*** to the name of your gene or any other descriptor that you want in the output heatmap
 plotwidth = 8 # ***CHANGE*** to set the width of the output plot in inches
-plotheight = 8 # ***CHANGE*** to set the width of the output plot in inches
+plotheight = 5 # ***CHANGE*** to set the width of the output plot in inches
 
 ```
 
 ## Functions
 ### ***DON'T CHANGE THESE OR ANYTHING ELSE BELOW... unless you wanna fix my code :)***
-####Created one big function that has all my common smaller functions to set up the input sequences in usable formats and get the total Miyata scores. Hope this is kosher.
+#### Created one big function that has all my common smaller functions to set up the input sequences in usable formats and get the total Miyata scores. Hope this is kosher.
 ```{r nt_to_Miyata}
 
 library(seqinr)
@@ -309,109 +310,108 @@ nt_to_Miyata = function(fasta1, fasta2) {
 #Get a vector of all the sequences from the input code chunk
 input_seq_vector = c()
 
-if (REFLEXIVE == TRUE) {
+if (REFLEXIVE == TRUE) { #If we want to calculate Miyata scores between sequence pairs of category A sequences only...
   print("Working with one set of sequences")
   
-  for (i in 1:nseqA) {
+  for (i in 1:nseqA) { #for every sequence name in the seqA_names vector, assign the corresponding sequence file
     temp = eval(as.symbol(paste("seqA", i , sep = "")))
     assign(seqA_names[i], temp)
   } 
   
-  all_pairs_df = t(as.data.frame(combn(seqA_names, 2))) #Get all the possible sequence pairing combinations to calculate Miyata scores of
+  all_pairs_df = t(as.data.frame(combn(seqA_names, 2))) #Get all the possible sequence pairing combinations to calculate Miyata scores between
   
    
-} else {
+} else { #Otherwise, if we have both a category A and a category B set of sequences...
   print("Working with two sets of sequences")
   
-  for (i in 1:nseqA) {
+  for (i in 1:nseqA) { #for every sequence name in the seqA_names vector, assign the corresponding sequence file
     tempA = eval(as.symbol(paste("seqA", i, sep = "")))
     assign(seqA_names[i], tempA)
   }  
   
-  for (j in 1:nseqB) {
+  for (j in 1:nseqB) { #for every sequence name in the seqB_names vector, assign the corresponding sequence file
     tempB = eval(as.symbol(paste("seqB", j, sep = "")))
     assign(seqB_names[j], tempB)
   }
   
-  all_pairs_df = as.data.frame(expand.grid(seqA_names, seqB_names))
+  all_pairs_df = as.data.frame(expand.grid(seqA_names, seqB_names)) #Create a dataframe that pairs every sequence A name with every sequence B name
   
 }
 
 score_vector = c()
 
-for (j in 1:nrow(all_pairs_df)) {
-  pair_name = paste(all_pairs_df[j,1], "-", all_pairs_df[j,2], sep = "")
+for (j in 1:nrow(all_pairs_df)) { #for every pair of sequences that was determined above...
+  pair_name = paste(all_pairs_df[j,1], "-", all_pairs_df[j,2], sep = "") #get a hyphenated name for the pair
   
-  pair1 = eval(as.symbol(as.character(all_pairs_df[j,1])))
-  pair2 = eval(as.symbol(as.character(all_pairs_df[j,2])))
+  pair1 = eval(as.symbol(as.character(all_pairs_df[j,1]))) #get the one sequence name to use in the Miyata score function
+  pair2 = eval(as.symbol(as.character(all_pairs_df[j,2]))) #get the other sequence name
   
-  score = nt_to_Miyata(pair1, pair2)
-  score_vector = c(score_vector, score)
-  assign(pair_name, score)
+  score = nt_to_Miyata(pair1, pair2) #calculate the score between this pair
+  score_vector = c(score_vector, score) #keep track of all the Miyata scores
+  assign(pair_name, score) #store the score in the hyphenated name (above) so we can easily report it
   
-  cat("The total Miyata score for the", pair_name, "pair is", score, "\n")
+  cat("The total Miyata score for the", pair_name, "pair is", score, "\n") #report the score for the pair
   
 }
 
 
-all_pairs_df2 = cbind(all_pairs_df, score_vector)
-all_pairs_df2 = as.data.frame(all_pairs_df2)
-colnames(all_pairs_df2)[colnames(all_pairs_df2) == "score_vector"] <- "Total_Miyata"
+all_pairs_Miyata_df = cbind(all_pairs_df, score_vector) #create a dataframe that has each sequence pair and their Miyata score
+all_pairs_Miyata_df = as.data.frame(all_pairs_Miyata_df) #set it as a dataframe in case it wasn't for whatever reason
+colnames(all_pairs_Miyata_df)[colnames(all_pairs_Miyata_df) == "score_vector"] <- "Total_Miyata" #rename the last column to be titled "Total_Miyata"
 
 ```
 
 ### Heat map of these scores
-##### Not sure if it's desirable or not to have a bunch of NA values to grey out the parts of the heat map that are repetitive... I have done that so far here. But you can get rid of it by using data=all_pairs_df2 in the ggplot function if you wish; makes the heat map smaller. 
+##### Not sure if it's desirable or not to have a bunch of NA values to grey out the parts of the heat map that are repetitive... I have done that so far here. But you can get rid of it by using data=all_pairs_Miyata_df in the ggplot function if you wish; makes the heat map smaller. 
 ```{r plot1, fig.height = plotheight, fig.width = plotwidth}
 
 library(ggplot2)
 
-if (REFLEXIVE == TRUE) {
+if (REFLEXIVE == TRUE) { #if we're just comparing one set of sequences against itself...
   
-  all_pairs_df3 = all_pairs_df2
-  all_pairs_df3$Total_Miyata = c(rep(NA, each=nrow(all_pairs_df2)))
-  all_pairs_df3$V1 = all_pairs_df2$V2
-  all_pairs_df3$V2 = all_pairs_df2$V1
+  NA_pairs1_df = all_pairs_Miyata_df #make a new dataframe that will set the NA values to sequence pairs that are repetitive, e.g. mel-sim and sim-mel have the same Miyata scores so we don't need to display both in our heatmap, unless you really want to
+  NA_pairs1_df$Total_Miyata = c(rep(NA, each=nrow(all_pairs_Miyata_df))) #give NA values to the repetitive sequence pairs
+  NA_pairs1_df$V1 = all_pairs_Miyata_df$V2 #along with the code line below, this changes the order of the sequence columns such that we now have sim-mel whereas before we had mel-sim
+  NA_pairs1_df$V2 = all_pairs_Miyata_df$V1
 
-  all_pairs_df4 = rbind(all_pairs_df2, all_pairs_df3)
+  NA_pairs2_df = data.frame(seqA_names, seqA_names, c(rep(NA, each=length(seqA_names)))) #also give NA values to identical sequence pairs, e.g. mel-mel
+  colnames(NA_pairs2_df) = c("V1", "V2", "Total_Miyata")
 
-  all_pairs_df5 = data.frame(seqA_names, seqA_names, c(rep(NA, each=length(seqA_names))))
-  colnames(all_pairs_df5) = c("V1", "V2", "Total_Miyata")
-
-  all_pairs_df6 = rbind(all_pairs_df4, all_pairs_df5)
+  all_pairs_Miyata_NA_df = rbind(all_pairs_Miyata_df, NA_pairs1_df, NA_pairs2_df) #put these all in one dataframe such that we have the original data of the Miyata scores (e.g. mel-sim), the NA values of the opposite sequence pairs (e.g. sim-mel), and the NA values of the identical sequence pairs (mel-mel)
   
-  plot1 = ggplot(data=all_pairs_df6, aes(x = factor(V1, level = seqA_names), y = factor(V2, level = seqA_names))) +
+  plot1 = ggplot(data=all_pairs_Miyata_NA_df, aes(x = factor(V1, level = seqA_names), y = factor(V2, level = seqA_names))) +
             geom_tile(aes(fill = as.numeric(as.character(Total_Miyata)))) +
             geom_text(aes(label = Total_Miyata)) +
             scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4") +
             labs(x = seqA_label, y = seqA_label, title = "Total Miyata scores between sequences", subtitle = subtitle_label, fill = "Miyata score")
 
-} else {
+} else { #if we're comparing two sets of sequences to each other (i.e. have category A and category B)...
   
-  all_pairs_df3 = all_pairs_df2
-  
-  if (PLOT_ALL == TRUE) {
+  if (PLOT_ALL == TRUE) { #if we want to plot values between all pairwise sequences...
     
-  plot1 = ggplot(data = all_pairs_df3, aes(y = factor(Var1, level = seqA_names), x = factor(Var2, level = seqB_names))) +
+  plot1 = ggplot(data = all_pairs_Miyata_df, aes(y = factor(Var1, level = seqA_names), x = factor(Var2, level = seqB_names))) +
             geom_tile(aes(fill = as.numeric(as.character(Total_Miyata)))) +
             geom_text(aes(label = Total_Miyata)) +
             scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4") +
             labs(x = seqB_label, y = seqA_label, title = "Total Miyata scores between sequences", subtitle = subtitle_label, fill = "Miyata score")  
-  } else {
+  
+  } else { #but if we don't want to plot all the pairwise sequence values because some pairs are not interesting...
     
-    for (k in 1:nrow(all_pairs_df2)) {
+    all_pairs_Miyata_NA_df = all_pairs_Miyata_df
+    
+    for (k in 1:nrow(all_pairs_Miyata_df)) { #for every row in the dataframe...
       
-      temp_pair = paste(all_pairs_df2[k,1], all_pairs_df2[k,2], sep = " ")
+      temp_pair = paste(all_pairs_Miyata_df[k,1], all_pairs_Miyata_df[k,2], sep = " ") #make a variable that represents the sequence pair of that row
       
-      if (temp_pair %in% plot_omit) {
+      if (temp_pair %in% plot_omit) { #if the sequence pair is in the "plot_omit" vector that the user defined in one of the input code chunks...
         
-        all_pairs_df3[k,3] = NA
+        all_pairs_Miyata_NA_df[k,3] = NA #set the Miyata score of that pair to be NA
         
       }
       
     }
     
-     plot1 = ggplot(data = all_pairs_df3, aes(y = factor(Var1, level = seqA_names), x = factor(Var2, level = seqB_names))) +
+     plot1 = ggplot(data = all_pairs_Miyata_NA_df, aes(y = factor(Var1, level = seqA_names), x = factor(Var2, level = seqB_names))) +
             geom_tile(aes(fill = as.numeric(as.character(Total_Miyata)))) +
             geom_text(aes(label = Total_Miyata)) +
             scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4") +
@@ -429,7 +429,7 @@ plot1
 ## Below is some useful visuals on the distribution of all possible Miyata scores.
 
 ### A distibution of Miyata scores
-```{r, fig.height=5, fig.width=5}
+```{r Miyata_dist1, fig.height=5, fig.width=5}
 
 Miyata_matrix_v = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34,
           0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 
@@ -462,7 +462,7 @@ summary(Miyata_matrix_v)
 ```
 
 ### Distribution of Miyata scores from each amino acid to the others
-```{r, fig.height = 10, fig.width = 15}
+```{r Miyata_dist2, fig.height = 10, fig.width = 15, warning=FALSE }
 
 cys = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34)
 pro = c(0.06, 0.97, 0.56, 0.87, 1.92, 2.48, 1.8, 2.4, 2.15, 2.94, 2.9, 1.79, 2.7, 2.62, 2.36, 3.17, 3.12, 4.17, 1.33)
