@@ -11,24 +11,61 @@ output: github_document
 #### Input fasta files of aligned coding sequences of a gene and their respective names
 ##### Generally you would want the order of the sequences that you input to be in a phylogenetically reasonable order.
 ##### ***If you have a set of sequences that you want to evaluate against itself, set REFLEXIVE = TRUE.*** E.g. get Miyata scores for mel-sim, mel-yak, sim-yak. ***Alternatively, you may want to individually compare mel, sim, and yak to another set of sequences, such as predicted ancestral sequences. If this is the case, set REFLEXIVE = FALSE.*** Then you will have comparisons of mel-ancestral1, sim-ancestral1, yak-ancestral1, mel-ancestral2, sim-ancestral2, yak-ancestral2, mel-ancestral3, sim-ancestral3, yak-ancestral3. 
-```{r input}
+```{r input_catA}
 
-REFLEXIVE = TRUE # ***CHANGE*** according to the above examples
+REFLEXIVE = FALSE # ***CHANGE*** according to the above examples
 
-nseqA = 8 # ***CHANGE*** to the number of input sequences of category 1 that you have
-nseqB = 7 # ***CHANGE*** to the number of input sequences of categroy 2 that you have. If you are only dealing with one category, i.e. REFLEXIVE = TRUE, then this part (and anything subsequently with a "B" label) will be ignored.
+nseqA = 8 # ***CHANGE*** to the number of input sequences of category A that you have
 
-seqA1 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dmel_aligned.fasta" # ***CHANGE*** to your input file
+seqA1 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dsec_aligned.fasta" # ***CHANGE*** to your input file
 seqA2 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dsim_aligned.fasta" # ***CHANGE*** to your input file
-seqA3 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dsec_aligned.fasta" # ***CHANGE*** to your input file
-seqA4 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dyak_aligned.fasta" # ***CHANGE*** to your input file
+seqA3 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dmel_aligned.fasta" # ***CHANGE*** to your input file
+seqA4 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dere_aligned.fasta" # ***CHANGE*** to your input file
 seqA5 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dtei_aligned.fasta" # ***CHANGE*** to your input file
-seqA6 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dere_aligned.fasta" # ***CHANGE*** to your input file
+seqA6 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dyak_aligned.fasta" # ***CHANGE*** to your input file
 seqA7 = "~/github/Sequence_Analysis/input_data/Miyata_score/Deug_aligned.fasta" # ***CHANGE*** to your input file
 seqA8 = "~/github/Sequence_Analysis/input_data/Miyata_score/Dpse_aligned.fasta" # ***CHANGE*** to your input file
 
-seqA_names = c("D.mel", "D.sim", "D.sec", "D.yak", "D.tei", "D.ere", "D.eug", "D.pse") # ***CHANGE*** to reflect the names of your input sequences. The order should match the order that you listed the sequences above.
-seqB_names = c("Node9", "Node10", "Node11", "Node12", "Node13", "Node14", "Node15")
+seqA_names = c("D.sec", "D.sim", "D.mel", "D.ere", "D.tei", "D.yak", "D.eug", "D.pse") # ***CHANGE*** to reflect the names of your input sequences. The order should match the order that you listed the sequences above.
+
+seqA_label = "extant species" # ***CHANGE*** to reflect what you want your plot axis label to say
+```
+
+#### Change the below input if you have set REFLEXIVE = FALSE. Otherwise, ignore this section.
+##### If you have REFLEXIVE = FALSE, then you will have a full heatmap grid. This may or may not be desirable for you. If it is not desirable for you, as in our case in which we are comparing extant species to ancestral nodes wherein not every extant species pairs with all the ancestral nodes, you can hide values from certain sequence pairs. See setting in the setup code below to do so.
+```{r input_catB}
+
+########### THE BELOW IS IMPORTANT IF 'REFLEXIVE = FALSE' BECAUSE YOU WANT TO COMPARE TWO SETS OF SEQUENCES. ##############
+
+nseqB = 6 # ***CHANGE*** to the number of input sequences of categroy B that you have. If you are only dealing with one category, i.e. REFLEXIVE = TRUE, then this part (and anything subsequently with a "B" label) will be ignored.
+
+seqB1 = "~/github/Sequence_Analysis/input_data/Miyata_score/Node10_aligned.fasta" # ***CHANGE*** to your input file
+seqB2 = "~/github/Sequence_Analysis/input_data/Miyata_score/Node11_aligned.fasta" # ***CHANGE*** to your input file
+seqB3 = "~/github/Sequence_Analysis/input_data/Miyata_score/Node12_aligned.fasta" # ***CHANGE*** to your input file
+seqB4 = "~/github/Sequence_Analysis/input_data/Miyata_score/Node13_aligned.fasta" # ***CHANGE*** to your input file
+seqB5 = "~/github/Sequence_Analysis/input_data/Miyata_score/Node14_aligned.fasta" # ***CHANGE*** to your input file
+seqB6 = "~/github/Sequence_Analysis/input_data/Miyata_score/Node15_aligned.fasta" # ***CHANGE*** to your input file
+
+seqB_names = c("Node10", "Node11", "Node12", "Node13", "Node14", "Node15") # ***CHANGE*** to reflect the names of your input sequences. The order should match the order that you listed the sequences above.
+
+seqB_label = "ancestral nodes" # ***CHANGE*** to reflect what you want your plot axis label to say for this input category
+
+# You will now indicate whether you want the entire heatmap displayed and if not, which sequence pairs to grey out.
+PLOT_ALL = FALSE # ***CHANGE*** Set to TRUE if you want a heatmap with every sequence pair's value displayed; set to FALSE if you want to omit the values of some pairs. If set to FALSE, indicate which pairs you want to omit in the vector below; make sure the names are exactly as written in the seqA_names and seqB_names vectors and to leave a single space between the names. 
+
+plot_omit = c("D.pse Node10", "D.pse Node11", "D.pse Node12", "D.pse Node13", "D.pse Node14", "D.pse Node15",
+              "D.eug Node11", "D.eug Node12", "D.eug Node13", "D.eug Node14", "D.eug Node15",
+              "D.ere Node12", "D.ere Node13",
+              "D.tei Node12", "D.tei Node13",
+              "D.yak Node12", "D.yak Node13",
+              "D.mel Node14", "D.mel Node15",
+              "D.sec Node14", "D.sec Node15",
+              "D.sim Node14", "D.sim Node15")
+
+```
+
+#### Labels and plot size input information
+```{r labels}
 
 subtitle_label = "bam" # ***CHANGE*** to the name of your gene or any other descriptor that you want in the output heatmap
 plotwidth = 8 # ***CHANGE*** to set the width of the output plot in inches
@@ -273,16 +310,33 @@ nt_to_Miyata = function(fasta1, fasta2) {
 input_seq_vector = c()
 
 if (REFLEXIVE == TRUE) {
+  print("Working with one set of sequences")
+  
   for (i in 1:nseqA) {
     temp = eval(as.symbol(paste("seqA", i , sep = "")))
     assign(seqA_names[i], temp)
   } 
+  
+  all_pairs_df = t(as.data.frame(combn(seqA_names, 2))) #Get all the possible sequence pairing combinations to calculate Miyata scores of
+  
+   
 } else {
-    print("idk")
-
+  print("Working with two sets of sequences")
+  
+  for (i in 1:nseqA) {
+    tempA = eval(as.symbol(paste("seqA", i, sep = "")))
+    assign(seqA_names[i], tempA)
+  }  
+  
+  for (j in 1:nseqB) {
+    tempB = eval(as.symbol(paste("seqB", j, sep = "")))
+    assign(seqB_names[j], tempB)
+  }
+  
+  all_pairs_df = as.data.frame(expand.grid(seqA_names, seqB_names))
+  
 }
 
-all_pairs_df = t(as.data.frame(combn(seqA_names, 2))) #Get all the possible sequence pairing combinations to calculate Miyata scores of
 score_vector = c()
 
 for (j in 1:nrow(all_pairs_df)) {
@@ -310,31 +364,71 @@ colnames(all_pairs_df2)[colnames(all_pairs_df2) == "score_vector"] <- "Total_Miy
 ##### Not sure if it's desirable or not to have a bunch of NA values to grey out the parts of the heat map that are repetitive... I have done that so far here. But you can get rid of it by using data=all_pairs_df2 in the ggplot function if you wish; makes the heat map smaller. 
 ```{r plot1, fig.height = plotheight, fig.width = plotwidth}
 
-all_pairs_df3 = all_pairs_df2
-all_pairs_df3$Total_Miyata = c(rep(NA, each=nrow(all_pairs_df2)))
-all_pairs_df3$V1 = all_pairs_df2$V2
-all_pairs_df3$V2 = all_pairs_df2$V1
-
-all_pairs_df4 = rbind(all_pairs_df2, all_pairs_df3)
-
-all_pairs_df5 = data.frame(seqA_names, seqA_names, c(rep(NA, each=length(seqA_names))))
-colnames(all_pairs_df5) = c("V1", "V2", "Total_Miyata")
-
-all_pairs_df6 = rbind(all_pairs_df4, all_pairs_df5)
-
-
 library(ggplot2)
 
-ggplot(data=all_pairs_df6, aes(x = factor(V1, level = seqA_names), y = factor(V2, level = seqA_names))) +
-  geom_tile(aes(fill = as.numeric(as.character(Total_Miyata)))) +
-  geom_text(aes(label = Total_Miyata)) +
-  scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4") +
-  labs(x = "species", y = "species", title = "Total Miyata scores between sequences", subtitle = subtitle_label, fill = "Miyata score")
+if (REFLEXIVE == TRUE) {
+  
+  all_pairs_df3 = all_pairs_df2
+  all_pairs_df3$Total_Miyata = c(rep(NA, each=nrow(all_pairs_df2)))
+  all_pairs_df3$V1 = all_pairs_df2$V2
+  all_pairs_df3$V2 = all_pairs_df2$V1
+
+  all_pairs_df4 = rbind(all_pairs_df2, all_pairs_df3)
+
+  all_pairs_df5 = data.frame(seqA_names, seqA_names, c(rep(NA, each=length(seqA_names))))
+  colnames(all_pairs_df5) = c("V1", "V2", "Total_Miyata")
+
+  all_pairs_df6 = rbind(all_pairs_df4, all_pairs_df5)
+  
+  plot1 = ggplot(data=all_pairs_df6, aes(x = factor(V1, level = seqA_names), y = factor(V2, level = seqA_names))) +
+            geom_tile(aes(fill = as.numeric(as.character(Total_Miyata)))) +
+            geom_text(aes(label = Total_Miyata)) +
+            scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4") +
+            labs(x = seqA_label, y = seqA_label, title = "Total Miyata scores between sequences", subtitle = subtitle_label, fill = "Miyata score")
+
+} else {
+  
+  all_pairs_df3 = all_pairs_df2
+  
+  if (PLOT_ALL == TRUE) {
+    
+  plot1 = ggplot(data = all_pairs_df3, aes(y = factor(Var1, level = seqA_names), x = factor(Var2, level = seqB_names))) +
+            geom_tile(aes(fill = as.numeric(as.character(Total_Miyata)))) +
+            geom_text(aes(label = Total_Miyata)) +
+            scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4") +
+            labs(x = seqB_label, y = seqA_label, title = "Total Miyata scores between sequences", subtitle = subtitle_label, fill = "Miyata score")  
+  } else {
+    
+    for (k in 1:nrow(all_pairs_df2)) {
+      
+      temp_pair = paste(all_pairs_df2[k,1], all_pairs_df2[k,2], sep = " ")
+      
+      if (temp_pair %in% plot_omit) {
+        
+        all_pairs_df3[k,3] = NA
+        
+      }
+      
+    }
+    
+     plot1 = ggplot(data = all_pairs_df3, aes(y = factor(Var1, level = seqA_names), x = factor(Var2, level = seqB_names))) +
+            geom_tile(aes(fill = as.numeric(as.character(Total_Miyata)))) +
+            geom_text(aes(label = Total_Miyata)) +
+            scale_fill_gradient2(low = "aquamarine1", high = "aquamarine4") +
+            labs(x = seqB_label, y = seqA_label, title = "Total Miyata scores between sequences", subtitle = subtitle_label, fill = "Miyata score")  
+    
+  }
+  
+}
+
+plot1
 
 ```
 
+# General purpose Miyata information
+## Below is some useful visuals on the distribution of all possible Miyata scores.
 
-# A distibution of Miyata scores
+### A distibution of Miyata scores
 ```{r, fig.height=5, fig.width=5}
 
 Miyata_matrix_v = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34,
@@ -367,7 +461,7 @@ summary(Miyata_matrix_v)
 
 ```
 
-# Distribution of Miyata scores from each amino acid to the others
+### Distribution of Miyata scores from each amino acid to the others
 ```{r, fig.height = 10, fig.width = 15}
 
 cys = c(1.33, 1.39, 2.22, 2.84, 1.45, 2.48, 3.26, 2.83, 3.48, 2.56, 3.27, 3.06, 0.86, 1.65, 1.63, 1.46, 2.24, 2.38, 3.34)
@@ -438,8 +532,6 @@ for (i in names(Miyata_df)) {
   means = c(means,meantemp)
   thirdqs = c(thirdqs, thirdqtemp)
   maxs = c(maxs, maxtemp)
-    
-    
     
 }
 
