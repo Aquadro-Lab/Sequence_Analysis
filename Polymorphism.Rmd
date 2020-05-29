@@ -13,7 +13,7 @@ output: github_document
 #### Input a multifasta file of the aligned sequences for a gene from a population.
 ```{r input}
 
-input_fasta = "~/github/Sequence_Analysis/input_data/mel-bam-ZI-CDS-NoN.fasta" # ***CHANGE*** to the multifasta file of your aligned population data
+input_fasta = "~/github/Sequence_Analysis/input_data/Polymorphism/mel-bam-ZI-CDS-NoN.fasta" # ***CHANGE*** to the multifasta file of your aligned population data
 ```
 
 #### Set up labels and stuff for the output graphs 
