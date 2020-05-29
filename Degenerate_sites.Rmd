@@ -1,0 +1,239 @@
+---
+title: "Degenerate_sites"
+author: "Miwa Wenzel"
+date: "5/29/2020"
+output: html_document
+---
+
+# Set up
+## Input files
+### ***CHANGE THESE IF YOU WISH***
+#### Input sequences as a CDS nucleotide fasta file.
+
+```{r input}
+
+input_fasta = "~/github/Sequence_Analysis/input_data/Degenerate_sites/Dmel_CG13607_CDS.fasta" # ***CHANGE*** to your sequence of interest
+
+```
+
+## Functions
+### ***DON'T CHANGE THESE OR ANYTHING ELSE BELOW... unless you wanna fix my code :)***
+##### This is a set of functions to get sequence data into a few different usable forms. Not all may be relevant for this code, but I maintain them together for ease. 
+
+```{r sequence_functions}
+############# IMPORT FASTA FILES AND CREATE DATAFRAME OF THE SEQUENCES ###################
+
+library(seqinr) #load seqinr library in order to use the read.fasta function below
+
+get_sequences = function(fasta) { #import sequences from fasta format
+  sequence_list = read.fasta(fasta, seqtype = "DNA", seqonly = TRUE)
+  sequence_list2 = gsub(" ", "", sequence_list) #remove any spaces in the fasta file if they are present to make sequences compatible with downstream functions
+  sequence_names = c() #set empty vector to create sequence names to identify each sequence in the fasta file
+
+  for (i in 1:length(sequence_list)) { #for each sequence in the fasta file, give it an identity of "sequence1, sequence2, etc." Then compile these such that we have a dataframe where the first column is the sequence names and the second column is the corresponding sequence itself)
+    sequence_name = {}
+    sequence_name = paste("sequence", i, sep = "")
+    sequence_names = c(sequence_names, sequence_name)
+  }
+
+  sequence = mapply(assign, sequence_names, sequence_list2)
+  as.data.frame(sequence)
+
+}
+
+
+############# CREATE A DATAFRAME OF NUCLEOTIDES FOR THE SEQUENCES ##################
+
+library(stringr) #load library to use str_split_fixed function below
+
+get_nucleotides = function(Sequences) { #Create a dataframe such that each nucleotide is in its own column. Thus we get a very large matrix where the rows are the different sequences and the columns are the nucleotides in the sequences.
+
+  nucleotides = str_split_fixed(Sequences$sequence, "", str_length(Sequences[1,1]))
+}
+
+############# CREATE A DATAFRAME OF CODONS FOR THE SEQUENCES ##############
+
+get_codons = function(Sequences) { #Now instead of splitting up the sequences into individual nucleotides for a dataframe, we want to split it up into codons
+  Codons = data.frame(matrix(nrow = nrow(Sequences), ncol = str_length(Sequences[1,1])/3))
+
+  for (b in 1:nrow(Sequences)) {
+    codon_vector = c()
+
+    for (i in seq(1, str_length(Sequences[b,1]), 3)) { #break up the sequences into codons
+      seq_codon = substr(Sequences[b,1], i, i + 2)
+      codon_vector = c(codon_vector, seq_codon)
+    }
+    Codons[b,] = codon_vector
+  }
+  codons = Codons
+}
+
+############# CREATE A DATAFRAME OF AMINO ACIDS FOR THE SEQUENCES #############
+
+codon_to_aa = function(dna) {
+
+ switch(dna, 
+        "ATA" = "I", "ATT" = "I", "ATC" = "I",
+        "CTT" = "L", "CTC" = "L", "CTA" = "L", "CTG" = "L", "TTA" = "L", "TTG" = "L",
+        "GTT" = "V", "GTC" = "V", "GTA" = "V", "GTG" = "V",
+        "TTT" = "F", "TTC" = "F",
+        "ATG" = "M",
+        "TGT" = "C", "TGC" = "C",
+        "GCT" = "A", "GCC" = "A", "GCA" = "A", "GCG" = "A",
+        "GGT" = "G", "GGC" = "G", "GGA" = "G", "GGG" = "G",
+        "CCT" = "P", "CCC" = "P", "CCA" = "P", "CCG" = "P",
+        "ACT" = "T", "ACC" = "T", "ACA" = "T", "ACG" = "T",
+        "TCT" = "S", "TCC" = "S", "TCA" = "S", "TCG" = "S", "AGT" = "S", "AGC" = "S",
+        "TAT" = "Y", "TAC" = "Y",
+        "TGG" = "W",
+        "CAA" = "Q", "CAG" = "Q",
+        "AAT" = "N", "AAC" = "N",
+        "CAT" = "H", "CAC" = "H",
+        "GAA" = "E", "GAG" = "E",
+        "GAT" = "D", "GAC" = "D",
+        "AAA" = "K", "AAG" = "K",
+        "CGT" = "R", "CGC" = "R", "CGA" = "R", "CGG" = "R", "AGA" = "R", "AGG" = "R",
+        "TAA" = "Stop", "TAG" = "Stop", "TGA" = "Stop", "NNN" = "NA",
+        "CNN" = "NA", "TNN" = "NA", "GNN" = "NA", "ANN" = "NA", 
+        "CCN" = "NA", "TTN" = "NA", "GGN" = "NA", "AAN" = "NA", 
+        "NNC" = "NA", "NNT" = "NA", "NNG" = "NA", "NNA" = "NA", 
+        "NCC" = "NA", "NTT" = "NA", "NGG" = "NA", "NAA" = "NA", 
+        "CTN" = "NA", "TCN" = "NA", "NCT" = "NA", "NTC" = "NA", 
+        "CAN" = "NA", "ACN" = "NA", "NCA" = "NA", "NAC" = "NA", 
+        "CGN" = "NA", "GCN" = "NA", "NCG" = "NA", "NGC" = "NA", 
+        "ATN" = "NA", "TAN" = "NA", "NAT" = "NA", "NTA" = "NA", 
+        "AGN" = "NA", "GAN" = "NA", "NAG" = "NA", "NGA" = "NA", 
+        "GTN" = "NA", "TGN" = "NA", "NGT" = "NA", "NTG" = "NA") 
+}
+
+get_AAs = function(Codon_df) {
+  AAs = apply(Codon_df, c(1,2), codon_to_aa)
+
+}
+
+```
+
+### This is the set up for getting the degeneracy scores for every codon
+##### Use of hash function taken from here: https://blog.ephorie.de/hash-me-if-you-can
+
+```{r Degeneracy_function, results=FALSE}
+
+assign_hash = Vectorize(assign, vectorize.args = c("x", "value"))
+
+get_hash = Vectorize(get, vectorize.args = c("x"))
+
+exists_hash = Vectorize(exists, vectorize.args = c("x"))
+
+hash = new.env(hash = TRUE, parent = emptyenv(), size = 61L)
+
+key = c("GCT", "GCC", "GCA", "GCG",
+        "CGT", "CGC", "CGA", "CGG", "AGA", "AGG",
+        "AAT", "AAC",
+        "GAT", "GAC", 
+        "TGT", "TGC", 
+        "GAA", "GAG",
+        "CAA", "CAG",
+        "GGT", "GGC", "GGA", "GGG",
+        "CAT", "CAC", 
+        "ATT", "ATC", "ATA",
+        "CTT", "CTC", "CTA", "CTG", "TTA", "TTG",
+        "AAA", "AAG",
+        "ATG",
+        "TTT", "TTC",
+        "CCT", "CCC", "CCA", "CCG",
+        "TCT", "TCC", "TCA", "TCG", "AGT", "AGC",
+        "ACT", "ACC", "ACA", "ACG", 
+        "TGG", 
+        "TAT", "TAC",
+        "GTT", "GTC", "GTA", "GTG")
+
+
+value = c("004", "004", "004", "004",
+          "004", "004", "204", "204", "202", "202", 
+          "002", "002", 
+          "002", "002", 
+          "002", "002",
+          "002", "002",
+          "002", "002",
+          "004", "004", "004", "004",
+          "002", "002", 
+          "003", "003", "003",
+          "004", "004", "204", "204", "202", "202",
+          "002", "002", 
+          "000", 
+          "002", "002",
+          "004", "004", "004", "004",
+          "004", "004", "004", "004", "002", "002", 
+          "004", "004", "004", "004", 
+          "000", 
+          "002", "002",
+          "004", "004", "004", "004")
+
+assign_hash(key, value, hash)
+
+```
+
+### Run the above functions to get sequence data in usable format
+```{r sequences}
+
+Sequences = get_sequences(input_fasta) #apply function in import sequences from fasta files
+
+Nucleotides = get_nucleotides(Sequences) #apply function to get the sequences into a usable dataframe format
+
+Codons = get_codons(Sequences) #apply function to get sequences into codon format so we can subsequently translate to amino acids
+
+AAs = get_AAs(Codons) #apply function to get amino acids of the sequences
+```
+
+## Do the analysis
+### Get the degenercy scores
+```{r}
+
+degenercy_vector = c()
+
+for (i in 1:ncol(Codons)) {
+  Codon_temp = Codons[[i]]
+  degenercy = hash[[Codon_temp]]
+  degenercy_vector = c(degenercy_vector, degenercy)
+}
+
+degenercy_values = paste(degenercy_vector, collapse="")
+degenercy_values_vector = unlist(strsplit(degenercy_values, split=""))
+
+degenercy_table = table(degenercy_values_vector)
+```
+
+#### Isoleucine has a three-fold degerate site and is reported as such above and below. Make sure to note this. It is common practice to count these three-fold degenerate sites as two-fold degnerate sites.
+#### We want to calculate: n0 = # of nondegenerate sites, n2 = # of two-fold degenerate sites, and n4 = # of four-fold degenerate sites.
+
+```{r}
+
+if (length(degenercy_table) == 4) {
+  
+  n0 = degenercy_table[[1]]
+  n2 = degenercy_table[[2]]
+  n3 = degenercy_table[[3]]
+  n4 = degenercy_table[[4]]
+
+  n2n3 = as.numeric(n2) + as.numeric(n3)  
+} else {
+  print("not all n0, n2, n3, and n4 categories are present")
+} 
+
+nS = as.numeric(n4) + (1/3)*n2n3
+nN = as.numeric(n0) + (2/3)*n2n3
+
+```
+
+```{r}
+cat("n0 =", n0, "\n")
+cat("n2 =", n2, "\n")
+cat("n3 =", n3, "\n")
+cat("n4 =", n4, "\n")
+
+
+cat("# synonymous sites =", nS, "\n")
+cat("# nonsynonymous sites =", nN, "\n")
+cat("Total sites =", nS+nN, "\n")
+
+```
