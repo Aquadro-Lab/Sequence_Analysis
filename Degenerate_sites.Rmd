@@ -186,34 +186,35 @@ AAs = get_AAs(Codons) #apply function to get amino acids of the sequences
 ```
 
 ## Do the analysis
-### Get the degenercy scores
+### Get the degeneracy scores
+#### Isoleucine has a three-fold degerate site and is reported as such above and below. Make sure to note this. It is common practice to count these three-fold degenerate sites as two-fold degnerate sites.
 ```{r}
 
-degenercy_vector = c()
+degeneracy_vector = c()
 
 for (i in 1:ncol(Codons)) {
   Codon_temp = Codons[[i]]
-  degenercy = hash[[Codon_temp]]
-  degenercy_vector = c(degenercy_vector, degenercy)
+  degeneracy = hash[[Codon_temp]]
+  degeneracy_vector = c(degeneracy_vector, degeneracy)
 }
 
-degenercy_values = paste(degenercy_vector, collapse="")
-degenercy_values_vector = unlist(strsplit(degenercy_values, split=""))
+degeneracy_values = paste(degeneracy_vector, collapse="")
+degeneracy_values_vector = unlist(strsplit(degeneracy_values, split=""))
 
-degenercy_table = table(degenercy_values_vector)
+degeneracy_table = table(degeneracy_values_vector)
 ```
 
-#### Isoleucine has a three-fold degerate site and is reported as such above and below. Make sure to note this. It is common practice to count these three-fold degenerate sites as two-fold degnerate sites.
-#### We want to calculate: n0 = # of nondegenerate sites, n2 = # of two-fold degenerate sites, and n4 = # of four-fold degenerate sites.
+#### We want to calculate: n0 = # of nondegenerate sites, n2 = # of two-fold degenerate sites, and n4 = # of four-fold degenerate sites. As mentioned above, we will include the n3 sites as n2 sites.
+#### Using these, we can calculate the number of synonymous and nonsynonymous sites using these formulas: nS = n4 + (1/3)*n2 and nN = n0 + (2/3)*n2
 
 ```{r}
 
-if (length(degenercy_table) == 4) {
+if (length(degeneracy_table) == 4) {
   
-  n0 = degenercy_table[[1]]
-  n2 = degenercy_table[[2]]
-  n3 = degenercy_table[[3]]
-  n4 = degenercy_table[[4]]
+  n0 = degeneracy_table[[1]]
+  n2 = degeneracy_table[[2]]
+  n3 = degeneracy_table[[3]]
+  n4 = degeneracy_table[[4]]
 
   n2n3 = as.numeric(n2) + as.numeric(n3)  
 } else {
@@ -225,6 +226,7 @@ nN = as.numeric(n0) + (2/3)*n2n3
 
 ```
 
+#### Reporting the values below
 ```{r}
 cat("n0 =", n0, "\n")
 cat("n2 =", n2, "\n")
@@ -234,6 +236,7 @@ cat("n4 =", n4, "\n")
 
 cat("# synonymous sites =", nS, "\n")
 cat("# nonsynonymous sites =", nN, "\n")
-cat("Total sites =", nS+nN, "\n")
+cat("Total calculated sites =", nS+nN, "\n")
+cat("Total actual sites =", ncol(Nucleotides))
 
 ```
